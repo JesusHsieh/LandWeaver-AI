@@ -557,7 +557,7 @@ export async function suggestInteriorStyle(planImageSrc: string): Promise<string
             contents: { parts: [ { text: prompt }, imagePart ] },
         });
 
-        const suggestedStyle = response.text.trim();
+        const suggestedStyle = (response.text ?? "").trim();
         if (!suggestedStyle) {
             throw new Error("AI did not return a style suggestion.");
         }
@@ -703,7 +703,7 @@ Analyze the provided site plan and ${scenes.length} landscape scenes to generate
             },
         });
         
-        const jsonText = response.text.trim();
+        const jsonText = (response.text ?? "").trim();
         return JSON.parse(jsonText);
 
     } catch (error) {
@@ -731,7 +731,7 @@ export async function suggestPlanImprovements(planImageSrc: string): Promise<str
             contents: { parts: [ { text: prompt }, imagePart ] },
         });
 
-        const suggestion = response.text.trim();
+        const suggestion = (response.text ?? "").trim();
         if (!suggestion) {
             throw new Error("AI did not return a suggestion.");
         }
@@ -767,7 +767,7 @@ export async function suggestStyleIdeas(language: Language = 'en'): Promise<stri
             }
         });
 
-        const jsonText = response.text.trim();
+        const jsonText = (response.text ?? "").trim();
         const styles = JSON.parse(jsonText);
 
         if (!Array.isArray(styles) || styles.length === 0) {
@@ -806,7 +806,7 @@ export async function rewriteText(text: string, style: string, language: Languag
             contents: prompt,
         });
 
-        return response.text.trim();
+        return (response.text ?? "").trim();
     } catch (error) {
         console.error("Error rewriting text:", error);
         throw new Error("Failed to rewrite text.");

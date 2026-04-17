@@ -233,7 +233,7 @@ export const generateLandscapePlan = async (
 
     const candidates = response.candidates;
     if (candidates && candidates.length > 0) {
-      for (const part of candidates[0].content.parts) {
+      for (const part of candidates[0].content?.parts ?? []) {
         if (part.inlineData && part.inlineData.data) {
           return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
         }

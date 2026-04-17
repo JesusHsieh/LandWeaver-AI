@@ -2,14 +2,24 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import cesium from 'vite-plugin-cesium';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), cesium()],
     server: {
       port: 3000,
       host: '0.0.0.0',
+      proxy: {
+        // 代理 NLSC WFS API，避免瀏覽器 CORS 限制
+        '/nlsc-wfs': {
+          target: 'https://wfs.nlsc.gov.tw',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/nlsc-wfs/, '/wfs'),
+          secure: true,
+        },
+      },
     },
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
@@ -31,6 +41,7 @@ export default defineConfig(({ mode }) => {
           project02: path.resolve(__dirname, 'src/02-landscape-concept-ai/index.html'),
           project03: path.resolve(__dirname, 'src/03-space-photo-composite/index.html'),
           project04: path.resolve(__dirname, 'src/04-3d-layout-simulation/index.html'),
+          project05: path.resolve(__dirname, 'src/05-landscape-geo-analysis/index.html'),
         },
       },
     },

@@ -1,0 +1,50 @@
+/* Module 05 — 景觀地理分析 AI */
+@import "../shared/styles/global.css";
+
+/* Module-specific design tokens (dark elegant theme) */
+@theme {
+  --color-elegant-bg:             #0C0D0E;
+  --color-elegant-surface:        #1A1C1E;
+  --color-elegant-border:         #2D3034;
+  --color-elegant-accent:         #3498DB;
+  --color-elegant-accent-glow:    rgba(52, 152, 219, 0.2);
+  --color-elegant-text-primary:   #E1E1E6;
+  --color-elegant-text-secondary: #9499A1;
+}
+
+@layer base {
+  body {
+    @apply bg-elegant-bg text-elegant-text-primary font-sans overflow-hidden;
+  }
+}
+
+/* Cesium container needs full height */
+#cesium-container {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.cesium-viewer-bottom {
+  display: none !important; 
+}
+
+/* Custom scrollbar for elegant look */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-elegant-bg;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-elegant-border rounded-full hover:bg-elegant-accent;
+}
+
+.elegant-grid-overlay {
+  background-image: 
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
