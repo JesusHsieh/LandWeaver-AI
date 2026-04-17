@@ -1,0 +1,6 @@
+{
+  "name": "景觀-景觀配置概念圖AI",
+  "description": "Auto-generate landscape site plans from sketches and photos using Gemini AI. Features include scale tracing, bubble diagrams, circulation plotting, and multi-style rendering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

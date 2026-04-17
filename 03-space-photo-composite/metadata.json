@@ -1,0 +1,6 @@
+{
+  "name": "景觀-空間與照片AI合成",
+  "description": "A professional photo re-synthesis tool that combines reference images, textual context, and a 2D spatial planner to generate precise architectural or atmospheric visualizations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

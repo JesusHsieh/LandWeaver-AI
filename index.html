@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LandWeaver AI — 景觀 AI 工具集</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            forest: {
+              50:  '#f2f7f2',
+              100: '#e0ede0',
+              200: '#c2dbc2',
+              300: '#96c196',
+              400: '#62a062',
+              500: '#3d7d3d',
+              600: '#2d6330',
+              700: '#254f27',
+              800: '#1f3f21',
+              900: '#1a341c',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .card-hover {
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+    }
+    .badge-ready { background: #dcfce7; color: #166534; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-forest-800 text-white">
+    <div class="max-w-5xl mx-auto px-6 py-8">
+      <div class="flex items-center gap-4 mb-3">
+        <div class="w-10 h-10 bg-forest-400 rounded-xl flex items-center justify-center text-2xl">🌿</div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight">LandWeaver AI</h1>
+          <p class="text-forest-300 text-sm">景觀設計 AI 工具集 · Landscape Design AI Suite</p>
+        </div>
+      </div>
+      <p class="text-forest-200 text-sm max-w-2xl mt-4 leading-relaxed">
+        整合 4 個景觀設計 AI 工具，從平面配置到 3D 模擬，由 Gemini AI 驅動。<br>
+        使用前請先在根目錄建立 <code class="bg-forest-700 px-1.5 py-0.5 rounded text-forest-100 font-mono text-xs">.env.local</code> 並填入你的 Gemini API Key。
+      </p>
+      <a href="https://aistudio.google.com/apikey" target="_blank"
+         class="inline-flex items-center gap-2 mt-4 text-xs bg-forest-600 hover:bg-forest-500 text-white px-3 py-1.5 rounded-lg transition-colors">
+        🔑 取得免費 Gemini API Key
+      </a>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-5xl mx-auto px-6 py-10">
+
+    <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">選擇工具 · Choose a Tool</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+      <!-- 01 -->
+      <a href="./src/01-landscape-magic-planner/index.html"
+         class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl">🏛️</div>
+          <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+        </div>
+        <h3 class="font-semibold text-slate-800 mb-1">01 · 景觀建築平面魔法師</h3>
+        <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
+          上傳基地平面圖，AI 渲染景觀配置、生成多角度場景並輸出專業簡報，支援中英文。
+        </p>
+        <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
+          開啟工具 →
+        </span>
+      </a>
+
+      <!-- 02 -->
+      <a href="./src/02-landscape-concept-ai/index.html"
+         class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-12 h-12 bg-forest-50 rounded-xl flex items-center justify-center text-2xl">🗺️</div>
+          <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+        </div>
+        <h3 class="font-semibold text-slate-800 mb-1">02 · 景觀配置概念圖 AI</h3>
+        <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
+          繪製基地邊界、路徑與機能泡泡，AI 渲染成 20+ 種風格的景觀配置圖。
+        </p>
+        <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
+          開啟工具 →
+        </span>
+      </a>
+
+      <!-- 03 (原05) -->
+      <a href="./src/03-space-photo-composite/index.html"
+         class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-2xl">📸</div>
+          <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+        </div>
+        <h3 class="font-semibold text-slate-800 mb-1">03 · 空間與照片 AI 合成</h3>
+        <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
+          上傳現場照片，在 2D 平面圖上配置景觀元素，AI 將其精準合成至真實場景中。
+        </p>
+        <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
+          開啟工具 →
+        </span>
+      </a>
+
+      <!-- 04 (原06) -->
+      <a href="./src/04-3d-layout-simulation/index.html"
+         class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center text-2xl">🧊</div>
+          <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+        </div>
+        <h3 class="font-semibold text-slate-800 mb-1">04 · 平面配置圖 AI 3D 模擬</h3>
+        <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
+          上傳平面圖，標記視點與方向，AI 生成 3D 透視模擬效果圖，支援 20+ 種渲染風格。
+        </p>
+        <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
+          開啟工具 →
+        </span>
+      </a>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="text-center py-8 text-xs text-slate-400 border-t border-slate-200 mt-8">
+    LandWeaver AI · Open Source · Powered by Gemini AI ·
+    <a href="https://github.com" target="_blank" class="hover:text-slate-600 underline">GitHub</a>
+  </footer>
+
+</body>
+</html>

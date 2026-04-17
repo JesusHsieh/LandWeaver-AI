@@ -1,0 +1,6 @@
+{
+  "name": "平面配置圖AI 3D模擬圖",
+  "description": "上傳平面圖，選擇視角與方向，使用 Gemini AI 生成 3D 透視圖。",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
