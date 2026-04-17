@@ -1,0 +1,9 @@
+/* Module 04 — 平面配置圖 AI 3D 模擬 */
+@import "../shared/styles/global.css";
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    @apply bg-slate-900 text-slate-100 antialiased overflow-hidden;
+  }
+}

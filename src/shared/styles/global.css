@@ -1,0 +1,84 @@
+/* =============================================================
+   LandWeaver AI — Global Stylesheet
+   Unified Tailwind CSS v4 entry point + Design Tokens
+   ============================================================= */
+
+@import "tailwindcss";
+
+/* -------------------------------------------------------------
+   Design Tokens — Brand Colors
+   ------------------------------------------------------------- */
+@theme {
+  /* Primary brand (emerald green) */
+  --color-brand-50:  #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059669;
+  --color-brand-700: #047857;
+  --color-brand-800: #065f46;
+  --color-brand-900: #064e3b;
+
+  /* Surface — dark theme (modules 03, 04) */
+  --color-surface-dark-base:    #030712;   /* gray-950 */
+  --color-surface-dark-card:    #111827;   /* gray-900 */
+  --color-surface-dark-border:  #1f2937;   /* gray-800 */
+  --color-surface-dark-muted:   #374151;   /* gray-700 */
+
+  /* Surface — light theme (modules 01, 02) */
+  --color-surface-light-base:   #f8fafc;   /* slate-50  */
+  --color-surface-light-card:   #ffffff;
+  --color-surface-light-border: #e2e8f0;   /* slate-200 */
+  --color-surface-light-muted:  #94a3b8;   /* slate-400 */
+
+  /* Header (shared LandWeaverHeader) */
+  --color-header-dark:          #0f1f11;
+  --color-header-light:         #1f3f21;
+  --color-header-border-dark:   #1a3d1c;
+  --color-header-border-light:  #254f27;
+  --color-header-text:          #86c986;
+  --color-header-text-sub:      #d1e8d1;
+
+  /* Semantic */
+  --color-primary:        var(--color-brand-600);   /* #059669 */
+  --color-primary-hover:  var(--color-brand-700);   /* #047857 */
+  --color-primary-ring:   var(--color-brand-500);   /* #10b981 */
+  --color-danger:         #dc2626;                  /* red-600 */
+  --color-danger-hover:   #b91c1c;                  /* red-700 */
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Roboto", sans-serif;
+}
+
+/* -------------------------------------------------------------
+   Base Reset & Defaults
+   ------------------------------------------------------------- */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Scrollbar — subtle style shared across all modules */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #4b5563; /* gray-600 */
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #6b7280; /* gray-500 */
+  }
+}

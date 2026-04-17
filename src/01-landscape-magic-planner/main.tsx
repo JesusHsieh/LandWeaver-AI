@@ -5,6 +5,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './index.css';
 import ApiKeyManager from '../shared/ApiKeyManager';
 
 const rootElement = document.getElementById('root');

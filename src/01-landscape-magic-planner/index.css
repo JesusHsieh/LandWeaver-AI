@@ -1,0 +1,15 @@
+/* Module 01 — 景觀建築平面魔法師 */
+@import "../shared/styles/global.css";
+
+/* Module-specific font overrides */
+@layer base {
+  body {
+    font-family: 'Roboto', var(--font-sans);
+    background-color: #f8fafc;
+    color: #1e293b;
+  }
+  .font-caveat           { font-family: 'Caveat', cursive; }
+  .font-permanent-marker { font-family: 'Permanent Marker', cursive; }
+  .font-playfair         { font-family: 'Playfair Display', serif; }
+  .font-lato             { font-family: 'Lato', sans-serif; }
+}
