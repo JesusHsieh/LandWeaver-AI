@@ -37,8 +37,8 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           main:      path.resolve(__dirname, 'index.html'),
-          project01: path.resolve(__dirname, 'src/01-landscape-magic-planner/index.html'),
-          project02: path.resolve(__dirname, 'src/02-landscape-concept-ai/index.html'),
+          project01: path.resolve(__dirname, 'src/01-landscape-concept-ai/index.html'),
+          project02: path.resolve(__dirname, 'src/02-landscape-magic-planner/index.html'),
           project03: path.resolve(__dirname, 'src/03-space-photo-composite/index.html'),
           project04: path.resolve(__dirname, 'src/04-3d-layout-simulation/index.html'),
           project05: path.resolve(__dirname, 'src/05-landscape-geo-analysis/index.html'),

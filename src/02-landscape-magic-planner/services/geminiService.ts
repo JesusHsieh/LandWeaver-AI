@@ -68,7 +68,7 @@ async function callGeminiWithRetry(imagePart: object, textPart: object): Promise
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             return await getAI().models.generateContent({
-                model: 'gemini-2.5-flash-image',
+                model: 'gemini-2.0-flash-preview-image-generation',
                 contents: { parts: [imagePart, textPart] },
                 config: {
                     responseModalities: [Modality.IMAGE],
@@ -149,7 +149,7 @@ export async function generateArchitecturalImage(parts: any[]): Promise<string> 
     const maxAttempts = 7;
     let attempts = 0;
     
-    // FIX: Updated config for 'gemini-2.5-flash-image' model according to guidelines.
+    // FIX: Updated config for 'gemini-2.0-flash-preview-image-generation' model according to guidelines.
     // This model only supports `responseModalities`.
     const payload = { 
         contents: { parts }, 
@@ -162,7 +162,7 @@ export async function generateArchitecturalImage(parts: any[]): Promise<string> 
         try {
             console.log(`Architectural image generation attempt ${attempts + 1}/${maxAttempts}`);
             const response = await getAI().models.generateContent({
-                model: 'gemini-2.5-flash-image',
+                model: 'gemini-2.0-flash-preview-image-generation',
                 ...payload
             });
             

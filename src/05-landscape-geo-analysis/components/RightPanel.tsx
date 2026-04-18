@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { MapSettings, MicroClimateData, LandscapeDesignData } from '../types';
 import { GISService } from '../services/gisService';
-import { Wind, Droplets, Thermometer, Wind as AirIcon, Sliders, Sun, Globe, TreePine, AlertTriangle, Lightbulb, Waves, Shovel, Flame } from 'lucide-react';
+import { exportMd, exportTxt, exportPdf } from '../services/exportService';
+import { Wind, Droplets, Thermometer, Wind as AirIcon, Sliders, Sun, Globe, TreePine, AlertTriangle, Lightbulb, Waves, Shovel, Flame, Download, FileText, FileCode } from 'lucide-react';
 
 interface RightPanelProps {
   settings: MapSettings;
@@ -55,7 +56,36 @@ export const RightPanel: React.FC<RightPanelProps> = ({ settings }) => {
 
   return (
     <div className="w-[320px] h-full bg-elegant-surface border-l border-elegant-border flex flex-col z-10 p-5 overflow-y-auto custom-scrollbar shadow-2xl">
-      
+
+      {/* 匯出報告 */}
+      {data && landscapeData && (
+        <div className="mb-6 p-3 bg-[#121416] border border-elegant-border rounded-xl">
+          <div className="text-[10px] uppercase tracking-widest text-elegant-text-secondary mb-3 flex items-center gap-1.5">
+            <Download className="w-3 h-3 text-elegant-accent" /> 匯出分析報告
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => exportPdf(data, landscapeData, settings)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-elegant-accent/10 hover:bg-elegant-accent/20 border border-elegant-accent/30 rounded-lg text-[11px] text-elegant-accent font-medium transition-colors"
+            >
+              <FileText className="w-3 h-3" /> PDF
+            </button>
+            <button
+              onClick={() => exportMd(data, landscapeData, settings)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-white/5 hover:bg-white/10 border border-elegant-border rounded-lg text-[11px] text-elegant-text-secondary hover:text-white font-medium transition-colors"
+            >
+              <FileCode className="w-3 h-3" /> .md
+            </button>
+            <button
+              onClick={() => exportTxt(data, landscapeData, settings)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-white/5 hover:bg-white/10 border border-elegant-border rounded-lg text-[11px] text-elegant-text-secondary hover:text-white font-medium transition-colors"
+            >
+              <FileText className="w-3 h-3" /> .txt
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 太陽能與方位角分析 */}
       <div className="mb-8 p-4 bg-[#121416]/50 rounded-xl border border-white/5">
         <h2 className="text-[11px] font-bold uppercase tracking-[2px] text-elegant-text-secondary mb-4 flex items-center gap-2">

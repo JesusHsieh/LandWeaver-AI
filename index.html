@@ -65,99 +65,120 @@
   </header>
 
   <!-- Main -->
-  <main class="max-w-5xl mx-auto px-6 py-10">
+  <main class="max-w-5xl mx-auto px-6 py-10 space-y-10">
 
-    <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">選擇工具 · Choose a Tool</h2>
+    <!-- Group 1: 基地分析 -->
+    <section>
+      <div class="flex items-center gap-3 mb-5">
+        <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Phase 1</span>
+        <h2 class="text-sm font-bold text-slate-700">基地分析 · Site Analysis</h2>
+        <div class="flex-1 h-px bg-slate-200"></div>
+      </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
-      <!-- 01 -->
-      <a href="./src/01-landscape-magic-planner/index.html"
-         class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
-        <div class="flex items-start justify-between mb-4">
-          <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl">🏛️</div>
-          <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
-        </div>
-        <h3 class="font-semibold text-slate-800 mb-1">01 · 景觀建築平面魔法師</h3>
-        <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-          上傳基地平面圖，AI 渲染景觀配置、生成多角度場景並輸出專業簡報，支援中英文。
-        </p>
-        <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-          開啟工具 →
-        </span>
-      </a>
+        <!-- 01 基地分析 -->
+        <a href="./src/05-landscape-geo-analysis/index.html"
+           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm sm:col-span-2">
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center text-2xl">🌍</div>
+            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+          </div>
+          <h3 class="font-semibold text-slate-800 mb-1">01 · 景觀地理分析 AI</h3>
+          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
+            整合 3D 地球儀、日照模擬、微氣候分析與景觀決策引擎，點選基地即時獲取真實氣象、空品、高程、都市計畫分區與植栽建議。
+          </p>
+          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
+            開啟工具 →
+          </span>
+        </a>
 
-      <!-- 02 -->
-      <a href="./src/02-landscape-concept-ai/index.html"
-         class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
-        <div class="flex items-start justify-between mb-4">
-          <div class="w-12 h-12 bg-forest-50 rounded-xl flex items-center justify-center text-2xl">🗺️</div>
-          <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
-        </div>
-        <h3 class="font-semibold text-slate-800 mb-1">02 · 景觀配置概念圖 AI</h3>
-        <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-          繪製基地邊界、路徑與機能泡泡，AI 渲染成 20+ 種風格的景觀配置圖。
-        </p>
-        <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-          開啟工具 →
-        </span>
-      </a>
+      </div>
+    </section>
 
-      <!-- 03 (原05) -->
-      <a href="./src/03-space-photo-composite/index.html"
-         class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
-        <div class="flex items-start justify-between mb-4">
-          <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-2xl">📸</div>
-          <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
-        </div>
-        <h3 class="font-semibold text-slate-800 mb-1">03 · 空間與照片 AI 合成</h3>
-        <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-          上傳現場照片，在 2D 平面圖上配置景觀元素，AI 將其精準合成至真實場景中。
-        </p>
-        <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-          開啟工具 →
-        </span>
-      </a>
+    <!-- Group 2: 概念發展 -->
+    <section>
+      <div class="flex items-center gap-3 mb-5">
+        <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Phase 2</span>
+        <h2 class="text-sm font-bold text-slate-700">概念發展 · Concept Development</h2>
+        <div class="flex-1 h-px bg-slate-200"></div>
+      </div>
 
-      <!-- 04 (原06) -->
-      <a href="./src/04-3d-layout-simulation/index.html"
-         class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
-        <div class="flex items-start justify-between mb-4">
-          <div class="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center text-2xl">🧊</div>
-          <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
-        </div>
-        <h3 class="font-semibold text-slate-800 mb-1">04 · 平面配置圖 AI 3D 模擬</h3>
-        <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-          上傳平面圖，標記視點與方向，AI 生成 3D 透視模擬效果圖，支援 20+ 種渲染風格。
-        </p>
-        <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-          開啟工具 →
-        </span>
-      </a>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
-      <!-- 05 -->
-      <a href="./src/05-landscape-geo-analysis/index.html"
-         class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
-        <div class="flex items-start justify-between mb-4">
-          <div class="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center text-2xl">🌍</div>
-          <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
-        </div>
-        <h3 class="font-semibold text-slate-800 mb-1">05 · 景觀地理分析 AI</h3>
-        <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-          整合 3D 地球儀、日照模擬、微氣候分析與景觀決策引擎，點選基地即時獲取植栽建議。
-        </p>
-        <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-          開啟工具 →
-        </span>
-      </a>
+        <!-- 01 景觀配置概念圖 AI -->
+        <a href="./src/01-landscape-concept-ai/index.html"
+           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-12 h-12 bg-forest-50 rounded-xl flex items-center justify-center text-2xl">🗺️</div>
+            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+          </div>
+          <h3 class="font-semibold text-slate-800 mb-1">01 · 景觀配置概念圖 AI</h3>
+          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
+            繪製基地邊界、路徑與機能泡泡，AI 渲染成 20+ 種風格的景觀配置圖。
+          </p>
+          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
+            開啟工具 →
+          </span>
+        </a>
 
-    </div>
+        <!-- 02 景觀建築平面魔法師 -->
+        <a href="./src/02-landscape-magic-planner/index.html"
+           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl">🏛️</div>
+            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+          </div>
+          <h3 class="font-semibold text-slate-800 mb-1">02 · 景觀建築平面魔法師</h3>
+          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
+            上傳基地平面圖，AI 渲染景觀配置、生成多角度場景並輸出專業簡報，支援中英文。
+          </p>
+          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
+            開啟工具 →
+          </span>
+        </a>
+
+        <!-- 03 -->
+        <a href="./src/03-space-photo-composite/index.html"
+           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-2xl">📸</div>
+            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+          </div>
+          <h3 class="font-semibold text-slate-800 mb-1">03 · 空間與照片 AI 合成</h3>
+          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
+            上傳現場照片，在 2D 平面圖上配置景觀元素，AI 將其精準合成至真實場景中。
+          </p>
+          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
+            開啟工具 →
+          </span>
+        </a>
+
+        <!-- 04 -->
+        <a href="./src/04-3d-layout-simulation/index.html"
+           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center text-2xl">🧊</div>
+            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+          </div>
+          <h3 class="font-semibold text-slate-800 mb-1">04 · 平面配置圖 AI 3D 模擬</h3>
+          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
+            上傳平面圖，標記視點與方向，AI 生成 3D 透視模擬效果圖，支援 20+ 種渲染風格。
+          </p>
+          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
+            開啟工具 →
+          </span>
+        </a>
+
+      </div>
+    </section>
+
   </main>
 
   <!-- Footer -->
   <footer class="text-center py-8 text-xs text-slate-400 border-t border-slate-200 mt-8">
     LandWeaver AI · Open Source · Powered by Gemini AI ·
-    <a href="https://github.com" target="_blank" class="hover:text-slate-600 underline">GitHub</a>
+    <a href="https://github.com/JesusHsieh/LandWeaver-AI" target="_blank" class="hover:text-slate-600 underline">GitHub</a>
   </footer>
 
 </body>
