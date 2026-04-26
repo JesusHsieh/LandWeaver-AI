@@ -1,369 +1,478 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { MapSettings, MicroClimateData, LandscapeDesignData } from '../types';
-import { GISService } from '../services/gisService';
 import { exportMd, exportTxt, exportPdf } from '../services/exportService';
-import { Wind, Droplets, Thermometer, Wind as AirIcon, Sliders, Sun, Globe, TreePine, AlertTriangle, Lightbulb, Waves, Shovel, Flame, Download, FileText, FileCode } from 'lucide-react';
 
 interface RightPanelProps {
   settings: MapSettings;
+  microData: MicroClimateData | null;
+  landscapeData: LandscapeDesignData | null;
 }
 
-const MetricTile = ({ icon, label, value }: { icon: React.ReactNode, label: string, value: string }) => (
-  <div className="bg-[#121416] p-3 border border-elegant-border rounded-lg flex flex-col gap-2">
-    <div className="flex items-center gap-2 text-elegant-text-secondary text-[9px] uppercase tracking-wider">
-      {icon} {label}
-    </div>
-    <div className="text-[12px] font-mono text-white">{value}</div>
+/* ── Compact data row ── */
+const DataRow = ({
+  label,
+  value,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+}) => (
+  <div className="gis-data-row">
+    <span className="gis-data-label">{label}</span>
+    <span
+      className="gis-data-value"
+      style={valueColor ? { color: valueColor } : undefined}
+    >
+      {value}
+    </span>
   </div>
 );
 
-const DataPoint = ({ label, value, last = false }: { label: string, value: string, last?: boolean }) => (
-  <div className={`flex justify-between items-center py-1 ${!last ? 'border-b border-white/5' : ''}`}>
-    <span className="text-[11px] text-elegant-text-secondary">{label}</span>
-    <span className="text-[12px] font-mono text-elegant-accent text-right">{value}</span>
+/* ── Mini bar chart for monthly irradiance ── */
+const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+const IrradianceChart = ({ data }: { data: number[] }) => (
+  <div className="flex items-end gap-[2px] w-full" style={{ height: '48px' }}>
+    {data.map((h, i) => {
+      const color = h > 70 ? '#E05A2B' : h > 40 ? '#C0592A' : h > 20 ? '#8A4020' : '#5A2A14';
+      return (
+        <div
+          key={i}
+          title={`${MONTH_LABELS[i]}: ${h}%`}
+          className="flex-1 rounded-t-[1px] transition-all cursor-default"
+          style={{
+            height: `${Math.max(h, 8)}%`,   // 最低 8% 確保可見
+            background: color,
+          }}
+        />
+      );
+    })}
   </div>
 );
 
-export const RightPanel: React.FC<RightPanelProps> = ({ settings }) => {
-  const [data, setData] = useState<MicroClimateData | null>(null);
-  const [landscapeData, setLandscapeData] = useState<LandscapeDesignData | null>(null);
+/* ── Status badge ── */
+const StatusBadge = ({
+  ok,
+  labelOk,
+  labelFail,
+}: {
+  ok: boolean;
+  labelOk: string;
+  labelFail: string;
+}) => (
+  <span
+    className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+    style={{
+      background: ok ? 'rgba(76,175,80,0.15)' : 'rgba(255,152,0,0.15)',
+      color: ok ? '#4CAF50' : '#FF9800',
+    }}
+  >
+    {ok ? labelOk : labelFail}
+  </span>
+);
 
-  useEffect(() => {
-    if (settings.analysisPoint) {
-      const fetchData = async () => {
-        const microResult = await GISService.getMicroClimateData(
-          settings.analysisPoint!.lat, 
-          settings.analysisPoint!.lng, 
-          settings.currentTime
-        );
-        setData(microResult);
-        
-        const landscapeResult = await GISService.getLandscapeDecisionData(
-          settings.analysisPoint!.lat,
-          settings.analysisPoint!.lng,
-          microResult
-        );
-        setLandscapeData(landscapeResult);
-      };
-      fetchData();
-    }
-  }, [settings.analysisPoint, settings.currentTime]);
+const MONTHS = ['1','2','3','4','5','6','7','8','9','10','11','12'];
 
-  const getWindDirectionText = (deg: number) => {
-    const directions = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
-    return directions[Math.round(deg / 45) % 8];
-  };
+const windDir = (deg: number) => {
+  const d = ['N','NE','E','SE','S','SW','W','NW'];
+  return d[Math.round(deg / 45) % 8];
+};
+
+export const RightPanel: React.FC<RightPanelProps> = ({ settings, microData: data, landscapeData }) => {
 
   return (
-    <div className="w-[320px] h-full bg-elegant-surface border-l border-elegant-border flex flex-col z-10 p-5 overflow-y-auto custom-scrollbar shadow-2xl">
-
-      {/* 匯出報告 */}
-      {data && landscapeData && (
-        <div className="mb-6 p-3 bg-[#121416] border border-elegant-border rounded-xl">
-          <div className="text-[10px] uppercase tracking-widest text-elegant-text-secondary mb-3 flex items-center gap-1.5">
-            <Download className="w-3 h-3 text-elegant-accent" /> 匯出分析報告
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => exportPdf(data, landscapeData, settings)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-elegant-accent/10 hover:bg-elegant-accent/20 border border-elegant-accent/30 rounded-lg text-[11px] text-elegant-accent font-medium transition-colors"
-            >
-              <FileText className="w-3 h-3" /> PDF
-            </button>
-            <button
-              onClick={() => exportMd(data, landscapeData, settings)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-white/5 hover:bg-white/10 border border-elegant-border rounded-lg text-[11px] text-elegant-text-secondary hover:text-white font-medium transition-colors"
-            >
-              <FileCode className="w-3 h-3" /> .md
-            </button>
-            <button
-              onClick={() => exportTxt(data, landscapeData, settings)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-white/5 hover:bg-white/10 border border-elegant-border rounded-lg text-[11px] text-elegant-text-secondary hover:text-white font-medium transition-colors"
-            >
-              <FileText className="w-3 h-3" /> .txt
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 太陽能與方位角分析 */}
-      <div className="mb-8 p-4 bg-[#121416]/50 rounded-xl border border-white/5">
-        <h2 className="text-[11px] font-bold uppercase tracking-[2px] text-elegant-text-secondary mb-4 flex items-center gap-2">
-          <Sun className="w-3 h-3 text-elegant-accent" /> 日照分析系統
-        </h2>
-        
-        {/* Chart */}
-        <div className="w-full h-[80px] bg-[#121416] rounded-lg mb-4 p-3 flex items-end gap-1.5 border border-elegant-border">
-          {data ? data.monthlyIrradiance.map((h, i) => (
-            <div 
-              key={i} 
-              className="flex-1 bg-elegant-accent opacity-60 rounded-t-[1px] transition-all hover:opacity-100" 
-              style={{ height: `${h}%` }} 
-            />
-          )) : Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="flex-1 bg-white/5 rounded-t-[1px]" style={{ height: '20%' }} />
-          ))}
-        </div>
-
-        <div className="space-y-2 mb-4">
-          <DataPoint label="當前日照覆蓋" value={data ? `${(100 - data.shadowCoverage).toFixed(1)}%` : '--'} />
-          <DataPoint label="日照峰值時數" value={data ? `${data.peakSunHours.toFixed(1)} h/d` : '--'} />
-          <DataPoint label="年度預估輻射" value={data ? `${data.annualIrradiance.toFixed(0)} kWh/m²` : '--'} />
-        </div>
-
-        {/* Seasonal Sun Overlay */}
-        {landscapeData && (
-          <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-white/5">
-            <div className="text-center">
-              <div className="text-[8px] text-elegant-text-secondary">夏至遮蔭</div>
-              <div className="text-[11px] font-mono text-white">{landscapeData.seasonalSun.summerSolstice.toFixed(0)}%</div>
-            </div>
-            <div className="text-center">
-              <div className="text-[8px] text-elegant-text-secondary">冬至遮蔭</div>
-              <div className="text-[11px] font-mono text-white">{landscapeData.seasonalSun.winterSolstice.toFixed(0)}%</div>
-            </div>
-            <div className="text-center">
-              <div className="text-[8px] text-elegant-text-secondary">春秋分</div>
-              <div className="text-[11px] font-mono text-white">{landscapeData.seasonalSun.equinox.toFixed(0)}%</div>
-            </div>
-          </div>
+    <aside
+      className="h-full flex flex-col z-10 overflow-y-auto"
+      style={{
+        width: '260px',
+        background: '#141414',
+        borderLeft: '1px solid #2A2A2A',
+      }}
+    >
+      {/* ── INFO Header ── */}
+      <div
+        className="px-4 py-3 flex items-center justify-between"
+        style={{ borderBottom: '1px solid #2A2A2A' }}
+      >
+        <span className="text-[11px] font-bold tracking-[0.2em] uppercase text-white">Info</span>
+        {data && (
+          <StatusBadge
+            ok={data._sources.weather !== 'fallback'}
+            labelOk={data._sources.weather === 'openMeteo' ? 'Open-Meteo ✓' : 'CWA ✓'}
+            labelFail="估算值"
+          />
         )}
       </div>
 
-      {/* 景觀設計分區 (Zoning) */}
-      {settings.showZoning && landscapeData && (
-        <div className="mb-8 animate-in fade-in slide-in-from-right-4 duration-500">
-          <h2 className="text-[11px] font-bold uppercase tracking-[2px] text-elegant-text-secondary mb-4 flex items-center gap-2">
-            <Lightbulb className="w-3 h-3 text-yellow-500" /> 微氣候空間分區 (Zoning)
-          </h2>
-          <div className="bg-elegant-accent/5 border border-elegant-accent/30 rounded-lg p-4 mb-2">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-[10px] text-elegant-text-secondary uppercase">分區環境類型</span>
-              <span className="text-[13px] text-elegant-accent font-bold">{landscapeData.zoning.category}</span>
-            </div>
-            <div className="text-[10px] text-elegant-text-secondary mb-3">特徵強度: {(landscapeData.zoning.intensity * 10).toFixed(1)} / 10</div>
-            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-               <div className="h-full bg-elegant-accent transition-all duration-1000" style={{ width: `${landscapeData.zoning.intensity * 100}%` }} />
-            </div>
-          </div>
-          <div className="p-3 bg-elegant-surface border border-elegant-border rounded-lg text-[11px] text-elegant-text-secondary leading-relaxed italic">
-            「{landscapeData.recommendations.designSuggestions[0]}」
-          </div>
-        </div>
-      )}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
 
-      {/* 土壤滲透分析 (Soil Analysis) */}
-      {settings.showSoilAnalysis && landscapeData && (
-        <div className="mb-8">
-           <h2 className="text-[11px] font-bold uppercase tracking-[2px] text-elegant-text-secondary mb-4 flex items-center gap-2">
-            <Shovel className="w-3 h-3 text-cyan-400" /> 土壤滲透與排水分析
-          </h2>
-          <div className="bg-[#121416] p-4 border border-elegant-border rounded-lg">
-            <div className="space-y-2">
-              <DataPoint label="土壤滲透率" value={`${landscapeData.soil.infiltrationRate.toFixed(1)} mm/hr`} />
-              <DataPoint label="排水速度" value={landscapeData.soil.drainageSpeed} />
-              <DataPoint label="積水風險評估" value={landscapeData.soil.waterloggingRisk} last />
+        {/* ── 基地資訊 ── */}
+        {settings.analysisPoint && (
+          <section>
+            <div className="gis-section-label mb-2">Site · 基地資訊</div>
+            <div className="space-y-1">
+              <DataRow
+                label="座標"
+                value={`${settings.analysisPoint.lat.toFixed(4)}°N · ${settings.analysisPoint.lng.toFixed(4)}°E`}
+              />
+              {data && (
+                <>
+                  <DataRow label="高程 Elevation" value={`${data.elevation.toFixed(1)} m`} />
+                  <DataRow label="坡度 / 坡向" value={`${data.slopePct.toFixed(1)}% · ${data.aspectDir}`} />
+                </>
+              )}
+              {landscapeData && (
+                <>
+                  <DataRow label="都市計畫分區" value={landscapeData.landUseZone ?? '查詢中...'} />
+                  <div className="pt-0.5">
+                    <StatusBadge
+                      ok={landscapeData._sources.zoning !== 'fallback'}
+                      labelOk="NLSC WMS ✓"
+                      labelFail="分區查詢失敗"
+                    />
+                  </div>
+                </>
+              )}
             </div>
-          </div>
-        </div>
-      )}
+          </section>
+        )}
 
-      {/* 集水區與水文 (Hydrology) */}
-      {settings.showHydrology && landscapeData && (
-        <div className="mb-8">
-           <h2 className="text-[11px] font-bold uppercase tracking-[2px] text-elegant-text-secondary mb-4 flex items-center gap-2">
-            <Waves className="w-3 h-3 text-blue-400" /> 集水區與雨水流向
-          </h2>
-          <div className="bg-[#121416] p-4 border border-elegant-border rounded-lg">
-            <div className="space-y-2">
-              <DataPoint label="主集水範圍" value={`${landscapeData.hydrology.catchmentArea.toFixed(1)} m²`} />
-              <DataPoint label="暴雨積水深度" value={`${landscapeData.hydrology.pondingDepth.toFixed(0)} mm`} />
-              <DataPoint label="地表排除方位" value={`${landscapeData.hydrology.flowDirection.toFixed(0)}°`} last />
+        {/* ── 即時氣象 ── */}
+        {settings.showMicroClimate && (
+          <section>
+            <div className="gis-section-label mb-2">Weather · 即時氣象</div>
+            <div>
+              <DataRow label="溫度" value={data ? `${data.temp.toFixed(1)} °C` : '--'} />
+              <DataRow label="濕度" value={data ? `${data.humidity.toFixed(0)} %` : '--'} />
+              <DataRow label="風速 / 向" value={data ? `${data.windSpeed.toFixed(1)} m/s · ${windDir(data.windDirection)}` : '--'} />
+              <DataRow label="雨量" value={data ? `${data.rainfall.toFixed(1)} mm` : '--'} />
             </div>
-          </div>
-        </div>
-      )}
+          </section>
+        )}
 
-      {/* 都市環境干擾 (Urban Stress) */}
-      {settings.showUrbanStress && landscapeData && (
-        <div className="mb-8">
-          <h2 className="text-[11px] font-bold uppercase tracking-[2px] text-elegant-text-secondary mb-4 flex items-center gap-2">
-            <Flame className="w-3 h-3 text-red-500" /> 都市環境干擾 (Urban Stress)
-          </h2>
-          <div className="bg-[#121416] p-4 border border-elegant-border rounded-lg space-y-3">
-             <div className="flex justify-between items-center text-[11px]">
-               <span className="text-elegant-text-secondary">地表材質熱指數 (Heat Index)</span>
-               <span className="text-white font-mono">{(landscapeData.urbanStress.surfaceHeatIndex * 100).toFixed(0)}%</span>
-             </div>
-             <div className="flex justify-between items-center text-[11px]">
-               <span className="text-elegant-text-secondary">地表反照率 (Albedo)</span>
-               <span className="text-white font-mono">{landscapeData.urbanStress.albedo.toFixed(2)}</span>
-             </div>
-             <div className="flex justify-between items-center text-[11px]">
-               <span className="text-elegant-text-secondary">推估表面溫度</span>
-               <span className="text-red-400 font-mono">{landscapeData.urbanStress.surfaceTemp.toFixed(1)}°C</span>
-             </div>
-             <div className="pt-2 border-t border-white/5 space-y-1">
-                <div className={`text-[10px] flex items-center gap-1 ${landscapeData.urbanStress.canyonEffect ? 'text-red-400' : 'text-green-400'}`}>
-                   {landscapeData.urbanStress.canyonEffect ? '⚠️ 偵測到明顯街谷風效應' : '✅ 街道風場流動順暢'}
+        {/* ── 空氣品質 ── */}
+        {settings.showMicroClimate && (
+          <section>
+            <div className="gis-section-label mb-2">Air Quality · 空氣品質</div>
+            <div>
+              <DataRow
+                label="PM2.5"
+                value={data ? `${data.pm25.toFixed(0)} µg/m³` : '--'}
+                valueColor={data && data.pm25 > 35 ? '#F44336' : undefined}
+              />
+              <DataRow
+                label="AQI"
+                value={data ? `${data.aqi.toFixed(0)}` : '--'}
+                valueColor={data && data.aqi > 100 ? '#FF9800' : undefined}
+              />
+              {data && (
+                <div className="pt-1">
+                  <StatusBadge
+                    ok={data._sources.airQuality === 'epa'}
+                    labelOk="EPA API ✓"
+                    labelFail="估算值"
+                  />
                 </div>
-                <div className={`text-[10px] flex items-center gap-1 ${landscapeData.urbanStress.downdraftRisk ? 'text-red-400' : 'text-blue-400'}`}>
-                   {landscapeData.urbanStress.downdraftRisk ? '⚠️ 存在高壓風切 (Downdraft) 風險' : '✅ 垂直風量穩定'}
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ── 日照分析 ── */}
+        {settings.showShadows && (
+          <section>
+            <div className="gis-section-label mb-2">Solar · 日照分析</div>
+            {data ? (
+              <IrradianceChart data={data.monthlyIrradiance} />
+            ) : (
+              <div className="flex items-end gap-[2px]" style={{ height: '48px' }}>
+                {MONTHS.map((_, i) => (
+                  <div key={i} className="flex-1 rounded-t-[1px]" style={{ height: '20%', background: '#2A2A2A' }} />
+                ))}
+              </div>
+            )}
+            <div className="flex justify-between mt-1 mb-2">
+              {['1','','','','','6','','','','','','12'].map((m, i) => (
+                <span key={i} className="text-[8px]" style={{ color: '#555', width: '8.3%', textAlign: 'center' }}>{m}</span>
+              ))}
+            </div>
+            <div>
+              <DataRow label="日照覆蓋率" value={data ? `${(100 - data.shadowCoverage).toFixed(1)} %` : '--'} />
+              <DataRow label="峰值日照時數" value={data ? `${data.peakSunHours.toFixed(1)} h/d` : '--'} />
+              <DataRow label="年輻射量" value={data ? `${data.annualIrradiance.toFixed(0)} kWh/m²` : '--'} />
+            </div>
+            {landscapeData && (
+              <div className="mt-2 grid grid-cols-3 gap-1">
+                {[
+                  { label: '夏至遮蔭', value: landscapeData.seasonalSun.summerSolstice },
+                  { label: '冬至遮蔭', value: landscapeData.seasonalSun.winterSolstice },
+                  { label: '春秋分', value: landscapeData.seasonalSun.equinox },
+                ].map(({ label, value }) => (
+                  <div
+                    key={label}
+                    className="text-center py-1.5 rounded"
+                    style={{ background: '#1C1C1C' }}
+                  >
+                    <div className="text-[8px]" style={{ color: '#555' }}>{label}</div>
+                    <div className="text-[11px] font-mono" style={{ color: '#F0F0F0' }}>
+                      {value.toFixed(0)}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── 地貌坡度 ── */}
+        {settings.showSlopeAnalysis && (
+          <section>
+            <div className="gis-section-label mb-2">Terrain · 地貌坡度</div>
+            <div>
+              <DataRow label="高程 DEM" value={data ? `${data.elevation.toFixed(1)} m` : '--'} />
+              <DataRow label="坡度" value={data ? `${data.slopePct.toFixed(1)} %` : '--'} />
+              <DataRow label="坡向 Aspect" value={data ? `${data.aspectDir} · ${data.aspectDeg.toFixed(0)}°` : '--'} />
+              <DataRow label="排水係數 C" value={data ? data.drainageCoeff.toFixed(2) : '--'} />
+            </div>
+          </section>
+        )}
+
+        {/* ── 土壤滲透 ── */}
+        {settings.showSoilAnalysis && landscapeData && (
+          <section>
+            <div className="gis-section-label mb-2">Soil · 土壤滲透</div>
+            <div>
+              <DataRow label="滲透率" value={`${landscapeData.soil.infiltrationRate.toFixed(1)} mm/hr`} />
+              <DataRow label="排水速度" value={landscapeData.soil.drainageSpeed} />
+              <DataRow label="積水風險" value={landscapeData.soil.waterloggingRisk}
+                valueColor={landscapeData.soil.waterloggingRisk === '高' ? '#F44336' : undefined} />
+            </div>
+          </section>
+        )}
+
+        {/* ── 水文 ── */}
+        {settings.showHydrology && landscapeData && (
+          <section>
+            <div className="gis-section-label mb-2">Hydrology · 水文</div>
+            <div>
+              <DataRow label="集水範圍" value={`${landscapeData.hydrology.catchmentArea.toFixed(1)} m²`} />
+              <DataRow label="暴雨積水深" value={`${landscapeData.hydrology.pondingDepth.toFixed(0)} mm`} />
+              <DataRow label="地表排除方位" value={`${landscapeData.hydrology.flowDirection.toFixed(0)}°`} />
+            </div>
+          </section>
+        )}
+
+        {/* ── 都市干擾 ── */}
+        {settings.showUrbanStress && landscapeData && (
+          <section>
+            <div className="gis-section-label mb-2">Urban Stress · 都市干擾</div>
+            <div>
+              <DataRow label="熱指數 Heat Index" value={`${(landscapeData.urbanStress.surfaceHeatIndex * 100).toFixed(0)} %`} />
+              <DataRow label="反照率 Albedo" value={landscapeData.urbanStress.albedo.toFixed(2)} />
+              <DataRow label="推估表面溫度" value={`${landscapeData.urbanStress.surfaceTemp.toFixed(1)} °C`}
+                valueColor={landscapeData.urbanStress.surfaceTemp > 38 ? '#F44336' : undefined} />
+            </div>
+            <div className="mt-2 space-y-1">
+              <div
+                className="text-[9px] px-2 py-1 rounded"
+                style={{
+                  background: landscapeData.urbanStress.canyonEffect ? 'rgba(244,67,54,0.1)' : 'rgba(76,175,80,0.1)',
+                  color: landscapeData.urbanStress.canyonEffect ? '#F44336' : '#4CAF50',
+                }}
+              >
+                {landscapeData.urbanStress.canyonEffect ? '⚠ 街谷風效應明顯' : '✓ 街道風場流動順暢'}
+              </div>
+              <div
+                className="text-[9px] px-2 py-1 rounded"
+                style={{
+                  background: landscapeData.urbanStress.downdraftRisk ? 'rgba(244,67,54,0.1)' : 'rgba(33,150,243,0.1)',
+                  color: landscapeData.urbanStress.downdraftRisk ? '#F44336' : '#2196F3',
+                }}
+              >
+                {landscapeData.urbanStress.downdraftRisk ? '⚠ 高壓風切 Downdraft 風險' : '✓ 垂直風量穩定'}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── 微氣候分區 ── */}
+        {settings.showZoning && landscapeData && (
+          <section>
+            <div className="gis-section-label mb-2">Zoning · 微氣候分區</div>
+            <div
+              className="px-3 py-2 rounded mb-2"
+              style={{ background: '#1C1C1C', border: '1px solid #2A2A2A' }}
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-[9px]" style={{ color: '#888' }}>環境類型</span>
+                <span className="text-[11px] font-bold" style={{ color: '#E05A2B' }}>
+                  {landscapeData.zoning.category}
+                </span>
+              </div>
+              <div
+                className="h-1 w-full rounded-full overflow-hidden"
+                style={{ background: '#2A2A2A' }}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${landscapeData.zoning.intensity * 100}%`,
+                    background: '#E05A2B',
+                  }}
+                />
+              </div>
+              <div className="text-[9px] mt-1 text-right" style={{ color: '#555' }}>
+                強度 {(landscapeData.zoning.intensity * 10).toFixed(1)} / 10
+              </div>
+            </div>
+            <div
+              className="text-[10px] px-2 py-2 rounded italic leading-relaxed"
+              style={{ background: '#1C1C1C', color: '#888' }}
+            >
+              「{landscapeData.recommendations.designSuggestions[0] ?? '選用適應當地氣候的原生植栽'}」
+            </div>
+          </section>
+        )}
+
+        {/* ── AI 植栽建議 ── */}
+        {settings.showPlantMatching && landscapeData && (
+          <section>
+            <div className="gis-section-label mb-2">AI Plants · 植栽建議</div>
+
+            {/* Traits */}
+            <div className="grid grid-cols-4 gap-1 mb-3">
+              {[
+                { k: '日照', v: landscapeData.aiSummary.traits.sun, hi: '高' },
+                { k: '溫度', v: landscapeData.aiSummary.traits.temp, hi: '高' },
+                { k: '風場', v: landscapeData.aiSummary.traits.wind, hi: '高' },
+                { k: '濕度', v: landscapeData.aiSummary.traits.water, hi: '高' },
+              ].map(({ k, v, hi }) => (
+                <div
+                  key={k}
+                  className="text-center py-1 rounded"
+                  style={{ background: '#1C1C1C' }}
+                >
+                  <div className="text-[8px] mb-0.5" style={{ color: '#555' }}>{k}</div>
+                  <div
+                    className="text-[11px] font-bold"
+                    style={{ color: v === hi ? '#E05A2B' : '#4CAF50' }}
+                  >
+                    {v}
+                  </div>
                 </div>
-             </div>
-          </div>
-        </div>
-      )}
+              ))}
+            </div>
 
-      {/* AI 景觀設計師 (AI Designer Decision Layer) */}
-      {settings.showPlantMatching && landscapeData && (
-        <div className="mb-8 p-5 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl shadow-inner animate-in fade-in zoom-in duration-700">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-[13px] font-bold tracking-[1px] text-white flex items-center gap-2">
-              <span className="p-1 bg-emerald-500 rounded-md shadow-lg shadow-emerald-500/20">
-                <Globe className="w-3.5 h-3.5 text-white" />
-              </span>
-              AI 景觀設計師
-            </h2>
-            <span className="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full font-mono border border-emerald-500/30">
-              DECISION ENGINE v2.0
-            </span>
-          </div>
-          
-          {/* Environmental Traits */}
-          <div className="grid grid-cols-4 gap-2 mb-6">
-            <div className="text-center p-2 bg-white/5 rounded-lg border border-white/5">
-              <div className="text-[8px] text-elegant-text-secondary mb-1">日照</div>
-              <div className={`text-[12px] font-bold ${landscapeData.aiSummary.traits.sun === '高' ? 'text-orange-400' : 'text-blue-400'}`}>
-                {landscapeData.aiSummary.traits.sun}
-              </div>
-            </div>
-            <div className="text-center p-2 bg-white/5 rounded-lg border border-white/5">
-              <div className="text-[8px] text-elegant-text-secondary mb-1">溫度</div>
-              <div className={`text-[12px] font-bold ${landscapeData.aiSummary.traits.temp === '高' ? 'text-red-400' : 'text-blue-400'}`}>
-                {landscapeData.aiSummary.traits.temp}
-              </div>
-            </div>
-            <div className="text-center p-2 bg-white/5 rounded-lg border border-white/5">
-              <div className="text-[8px] text-elegant-text-secondary mb-1">風場</div>
-              <div className={`text-[12px] font-bold ${landscapeData.aiSummary.traits.wind === '高' ? 'text-cyan-400' : 'text-green-400'}`}>
-                {landscapeData.aiSummary.traits.wind}
-              </div>
-            </div>
-            <div className="text-center p-2 bg-white/5 rounded-lg border border-white/5">
-              <div className="text-[8px] text-elegant-text-secondary mb-1">濕度</div>
-              <div className={`text-[12px] font-bold ${landscapeData.aiSummary.traits.water === '高' ? 'text-blue-400' : 'text-yellow-400'}`}>
-                {landscapeData.aiSummary.traits.water}
-              </div>
-            </div>
-          </div>
+            {/* Plant lists */}
+            {(['喬木', '灌木', '地被'] as const).map((type) => {
+              const plants = landscapeData.recommendations.topPlants
+                .filter((p) => p.type === type)
+                .slice(0, 3);
+              if (!plants.length) return null;
+              const color = { 喬木: '#4CAF50', 灌木: '#8BC34A', 地被: '#CDDC39' }[type];
+              return (
+                <div key={type} className="mb-2">
+                  <div
+                    className="text-[9px] font-bold mb-1 tracking-wide"
+                    style={{ color }}
+                  >
+                    {type} ·
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {plants.map((p) => (
+                      <span
+                        key={p.id}
+                        className="text-[10px] px-2 py-0.5 rounded"
+                        style={{
+                          background: '#1C1C1C',
+                          border: '1px solid #2A2A2A',
+                          color: '#F0F0F0',
+                        }}
+                      >
+                        {p.name.split(' ')[0]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
 
-          {/* Categorized Recommendations */}
-          <div className="space-y-4 mb-6">
-            <div>
-              <div className="text-[10px] text-elegant-text-secondary font-bold mb-2 flex items-center gap-1">
-                <TreePine className="w-3 h-3 text-emerald-400" /> 建議喬木 (Trees)
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {landscapeData.recommendations.topPlants.filter(p => p.type === '喬木').slice(0, 3).map(p => (
-                  <span key={p.id} className="px-2 py-1 bg-white/5 rounded text-[11px] text-white border border-white/10 hover:border-emerald-500/50 transition-colors">
-                    {p.name.split(' ')[0]}
-                  </span>
+            {/* Avoid */}
+            {landscapeData.recommendations.avoidPlants.length > 0 && (
+              <div
+                className="mt-2 px-2 py-2 rounded"
+                style={{ background: 'rgba(244,67,54,0.08)', border: '1px solid rgba(244,67,54,0.2)' }}
+              >
+                <div className="text-[9px] font-bold mb-1 tracking-widest uppercase" style={{ color: '#F44336' }}>
+                  ✕ Reject — 避免種植
+                </div>
+                {landscapeData.recommendations.avoidPlants.map((a, i) => (
+                  <div key={i} className="flex justify-between text-[10px] py-0.5">
+                    <span style={{ color: '#F0F0F0' }}>{a.name}</span>
+                    <span className="italic text-[9px]" style={{ color: '#F44336', opacity: 0.7 }}>{a.reason}</span>
+                  </div>
                 ))}
               </div>
-            </div>
+            )}
+          </section>
+        )}
 
-            <div>
-              <div className="text-[10px] text-elegant-text-secondary font-bold mb-2 flex items-center gap-1">
-                <Sliders className="w-3 h-3 text-emerald-400" /> 建議灌木 (Shrubs)
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {landscapeData.recommendations.topPlants.filter(p => p.type === '灌木').slice(0, 3).map(p => (
-                  <span key={p.id} className="px-2 py-1 bg-white/5 rounded text-[11px] text-white border border-white/10">
-                    {p.name.split(' ')[0]}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-[10px] text-elegant-text-secondary font-bold mb-2 flex items-center gap-1">
-                <Droplets className="w-3 h-3 text-emerald-400" /> 地被植物 (Groundcover)
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {landscapeData.recommendations.topPlants.filter(p => p.type === '地被').slice(0, 3).map(p => (
-                  <span key={p.id} className="px-2 py-1 bg-white/5 rounded text-[11px] text-white border border-white/10">
-                    {p.name.split(' ')[0]}
-                  </span>
-                ))}
-              </div>
-            </div>
+        {/* ── 系統診斷 ── */}
+        <section>
+          <div className="gis-section-label mb-2">Diagnostics · 系統診斷</div>
+          <div className="space-y-1 text-[10px]" style={{ color: '#888' }}>
+            {!settings.analysisPoint && (
+              <p>→ 點選地圖地點以啟動景觀決策引擎。</p>
+            )}
+            {data && data.pm25 > 35 && (
+              <p style={{ color: '#FF9800' }}>⚠ PM2.5 超標 ({data.pm25.toFixed(0)} µg/m³) — 建議耐汙染植栽。</p>
+            )}
+            {data && data._sources.weather === 'fallback' && (
+              <p style={{ color: '#FF9800' }}>⚠ 氣象 API 無法連線（Open-Meteo + CWA 均失敗），顯示估算值。</p>
+            )}
+            {landscapeData && landscapeData.soil.waterloggingRisk === '高' && (
+              <p style={{ color: '#F44336' }}>⚠ 基地排水不良，植栽死亡率風險上升。</p>
+            )}
+            {landscapeData && landscapeData.urbanStress.surfaceTemp > 38 && (
+              <p style={{ color: '#F44336' }}>⚠ 地表蓄熱嚴重，建議噴霧或牆面綠化降溫。</p>
+            )}
+            {data && data._sources.weather === 'cwa' && !settings.analysisPoint && (
+              <p style={{ color: '#4CAF50' }}>✓ 所有 API 連線正常。</p>
+            )}
           </div>
-
-          {/* Avoid Section */}
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl space-y-2">
-            <div className="text-[10px] text-red-400 font-black tracking-widest uppercase flex items-center gap-1 mb-1">
-              <AlertTriangle className="w-3.5 h-3.5" /> ⚠️ 絕對避免種植 (REJECT)
-            </div>
-            {landscapeData.recommendations.avoidPlants.map((a, i) => (
-              <div key={i} className="flex justify-between items-start text-[11px] leading-tight">
-                <span className="text-white font-medium">{a.name}</span>
-                <span className="text-red-400/80 text-[10px] italic">({a.reason})</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 微氣候數據 */}
-      {settings.showMicroClimate && (
-        <div className="mb-8">
-          <h2 className="text-[11px] font-bold uppercase tracking-[2px] text-elegant-text-secondary mb-4 flex items-center gap-2">
-            <AirIcon className="w-3 h-3 text-elegant-accent" /> 即時微氣候 (GIS API)
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-             <MetricTile icon={<Wind className="w-4 h-4" />} label="風速/方向" value={data ? `${data.windSpeed.toFixed(1)}m/s ${getWindDirectionText(data.windDirection)}` : '--'} />
-             <MetricTile icon={<Droplets className="w-4 h-4" />} label="雨量 (即時)" value={data ? `${data.rainfall.toFixed(1)}mm` : '--'} />
-             <MetricTile icon={<Thermometer className="w-4 h-4" />} label="環境當前溫" value={data ? `${data.temp.toFixed(1)}°C` : '--'} />
-             <MetricTile icon={<AirIcon className="w-4 h-4" />} label="PM2.5 / AQI" value={data ? `${data.pm25.toFixed(0)} / ${data.aqi.toFixed(0)}` : '--'} />
-          </div>
-        </div>
-      )}
-
-      {/* 地貌與淨流量 */}
-      {settings.showSlopeAnalysis && (
-        <div className="mb-8">
-          <h2 className="text-[11px] font-bold uppercase tracking-[2px] text-elegant-text-secondary mb-4 flex items-center gap-2">
-            <Sliders className="w-3 h-3 text-elegant-accent" /> 地貌坡度分析 (Slope)
-          </h2>
-          <div className="space-y-3 bg-[#121416] p-4 border border-elegant-border rounded-lg">
-             <DataPoint label="區域最大坡度" value={data ? `${data.slopePct.toFixed(1)}%` : '--'} />
-             <DataPoint label="地表排水係數 (C)" value={data ? data.drainageCoeff.toFixed(2) : '--'} />
-             <DataPoint label="地面高程 (DEM)" value={data ? `${data.elevation.toFixed(1)} m` : '--'} />
-             <DataPoint label="坡向 (Aspect)" value={data ? `${data.aspectDir} (${data.aspectDeg.toFixed(0)}°)` : '--'} last />
-          </div>
-          {data && (
-            <div className="mt-2 text-[10px] text-elegant-text-secondary/60 text-right">
-              來源: {data._sources.elevation === 'openElevation' ? '✓ Open-Elevation API' : '⚠ 估算值'}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* GIS 洞察 */}
-      <div className="mt-auto p-4 bg-elegant-accent-glow border border-elegant-accent/30 rounded-lg text-[12px] leading-relaxed transition-all">
-        <span className="text-elegant-accent font-bold uppercase text-[10px] flex items-center gap-1">
-          <Globe className="w-3 h-3" /> 系統診斷報告:
-        </span>
-        <div className="mt-2 text-elegant-text-secondary text-[11px] space-y-1">
-          {data && data.pm25 > 35 && <p>• 目前 PM2.5 超標 ({data.pm25.toFixed(0)} µg/m³)，建議選用含油質較少之耐汙染植栽。</p>}
-          {data && data.aqi > 100 && <p>• AQI 指數偏高 ({data.aqi.toFixed(0)})，建議搭配抗汙染植栽降低空氣危害。</p>}
-          {data && data._sources.weather === 'fallback' && <p>⚠ 氣象 API 未連線，顯示估算值。請確認 VITE_CWA_API_KEY。</p>}
-          {landscapeData && landscapeData.soil.waterloggingRisk === '高' && <p>• 基地排水不良，若未改良土層，植栽死亡率預估將上升 40%。</p>}
-          {landscapeData && landscapeData.urbanStress.surfaceTemp > 38 && <p>• 街道材質蓄熱嚴重，建議引入噴霧系統或牆面綠化以降溫。</p>}
-          {!settings.analysisPoint && <p>• 請點選地圖地點以啟動景觀決策增加引擎。</p>}
-        </div>
+        </section>
       </div>
-    </div>
+
+      {/* ── Export footer ── */}
+      {data && landscapeData && (
+        <div
+          className="px-4 py-3 space-y-2"
+          style={{ borderTop: '1px solid #2A2A2A' }}
+        >
+          <div className="gis-section-label mb-2">Export · 匯出報告</div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => exportPdf(data, landscapeData, settings)}
+              className="gis-action-btn gis-action-primary flex-1"
+            >
+              PDF
+            </button>
+            <button
+              onClick={() => exportMd(data, landscapeData, settings)}
+              className="gis-action-btn gis-action-ghost flex-1"
+            >
+              .md
+            </button>
+            <button
+              onClick={() => exportTxt(data, landscapeData, settings)}
+              className="gis-action-btn gis-action-ghost flex-1"
+            >
+              .txt
+            </button>
+          </div>
+        </div>
+      )}
+    </aside>
   );
 };

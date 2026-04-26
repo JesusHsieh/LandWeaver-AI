@@ -22,10 +22,10 @@ export interface MicroClimateData {
   planCurvature: number;      // m⁻¹, Laplacian: +凹地(聚水) / -凸地(散水)
   // Source tracking — 'live' = real API, 'fallback' = estimated value
   _sources: {
-    weather:    'cwa'           | 'fallback';
-    airQuality: 'epa'           | 'fallback';
-    solar:      'pvgis'         | 'fallback';
-    elevation:  'openElevation' | 'fallback';
+    weather:    'openMeteo' | 'cwa' | 'fallback';
+    airQuality: 'epa'              | 'fallback';
+    solar:      'pvgis'            | 'fallback';
+    elevation:  'openElevation'    | 'fallback';
   };
 }
 
@@ -85,8 +85,8 @@ export interface LandscapeDesignData {
   };
   landUseZone: string; // Taiwan Urban Planning Zone from NLSC
   _sources: {
-    admin:  'nlsc'    | 'fallback';
-    zoning: 'nlscWfs' | 'fallback';
+    admin:  'nlsc'               | 'fallback';
+    zoning: 'nlscWms' | 'nlscWfs' | 'fallback';
   };
   recommendations: {
     topPlants: PlantRecommendation[];
@@ -97,18 +97,56 @@ export interface LandscapeDesignData {
 }
 
 export interface MapSettings {
+  // ── 基礎圖層
   showOsmBuildings: boolean;
   showOsmImagery: boolean;
   showGoogle3DTiles: boolean;
   showShadows: boolean;
   showTerrain: boolean;
+  // ── 國土測繪 WMTS 圖層
+  showNlscEmap: boolean;    // 電子地圖 (EMAP)
+  showNlscPhoto: boolean;   // 正射影像 (PHOTO2)
+  // ── 分析工具
   showMicroClimate: boolean;
   showSlopeAnalysis: boolean;
-  showZoning: boolean; 
+  // ── 景觀決策層
+  showZoning: boolean;
   showUrbanStress: boolean;
-  showHydrology: boolean; // New
-  showSoilAnalysis: boolean; // New
-  showPlantMatching: boolean; // New
+  showHydrology: boolean;
+  showSoilAnalysis: boolean;
+  showPlantMatching: boolean;
+  // ── 地政法規查詢 (內政部地政司 · 8路並行)
+  showUrbanPlan: boolean;       // 08A 都市計畫  urban.cpami.gov.tw
+  showLiquefaction: boolean;    // 08B 地盤液化  liquidation.tw
+  showDebrisFlow: boolean;      // 08C 土石流潛勢 246.swcb.gov.tw
+  showActiveFault: boolean;     // 08D 活動斷層  CGS WMS
+  showFloodPotential: boolean;  // 08E 淹水潛勢  fsp.wra.gov.tw
+  showSlopeSensitive: boolean;  // 08F 山坡地/地質敏感區 soil.swcb.gov.tw
+  showDrinkingWater: boolean;   // 08G 飲用水保護區 epa.gov.tw
+  showCulturalHeritage: boolean;// 08H 文化資產  文化部 BOCH
+  // ── 國土測繪額外圖層
+  showNlscLandSect: boolean;   // 地籍圖 LANDSECT
+  showNlscContour: boolean;    // 等高線 MOI_CONTOUR
+  showNlscHillShade: boolean;  // 山體陰影 MOI_HILLSHADE
+  showNlscAdminBound: boolean; // 行政區界 TOWN
+  // ── 底圖主題 / OSM 3D 色彩
+  baseTheme: 'OSM' | 'DARK' | 'LIGHT';
+  osmBuildingHue: number;     // 0-360
+  osmBuildingOpacity: number; // 0-1
+  // ── 交通流動層 (Cesium GroundPolylinePrimitive)
+  showMrtLayer: boolean;           // 台北捷運路線 + 站點
+  showMrtTrains: boolean;          // 捷運列車動態 (TDX LiveBoard)
+  showThsrLayer: boolean;          // 高鐵路線 + 站點
+  showThsrTrains: boolean;         // 高鐵列車動態 (時刻表模擬)
+  showTRALayer: boolean;           // 台鐵路線 + 站點
+  showTRATrains: boolean;          // 台鐵列車動態 (TDX 時刻表模擬)
+  showTaoyuanMrtLayer: boolean;    // 桃捷路線 + 站點
+  showTaoyuanMrtTrains: boolean;   // 桃捷列車動態 (TDX LiveBoard)
+  showTaichungMrtLayer: boolean;   // 中捷路線 + 站點
+  showTaichungMrtTrains: boolean;  // 中捷列車動態 (TDX LiveBoard)
+  showKaohsiungMrtLayer: boolean;  // 高捷路線 + 站點
+  showKaohsiungMrtTrains: boolean; // 高捷列車動態 (TDX LiveBoard)
+  showYouBikeLayer: boolean;       // YouBike 站點密度
   currentTime: Date;
   selectedBase: {
     lat: number;
@@ -124,9 +162,11 @@ export interface MapSettings {
 export const INITIAL_SETTINGS: MapSettings = {
   showOsmBuildings: false,
   showOsmImagery: true,
-  showGoogle3DTiles: true,
+  showGoogle3DTiles: false,
   showShadows: true,
-  showTerrain: true,
+  showTerrain: false,
+  showNlscEmap: false,
+  showNlscPhoto: false,
   showMicroClimate: false,
   showSlopeAnalysis: false,
   showZoning: false,
@@ -134,14 +174,39 @@ export const INITIAL_SETTINGS: MapSettings = {
   showHydrology: false,
   showSoilAnalysis: false,
   showPlantMatching: false,
+  showUrbanPlan: false,
+  showLiquefaction: false,
+  showDebrisFlow: false,
+  showActiveFault: false,
+  showFloodPotential: false,
+  showSlopeSensitive: false,
+  showDrinkingWater: false,
+  showCulturalHeritage: false,
+  showNlscLandSect: false,
+  showNlscContour: false,
+  showNlscHillShade: false,
+  showNlscAdminBound: false,
+  baseTheme: 'OSM',
+  osmBuildingHue: 35,
+  osmBuildingOpacity: 0.85,
+  showMrtLayer: false,
+  showMrtTrains: false,
+  showThsrLayer: false,
+  showThsrTrains: false,
+  showTRALayer: false,
+  showTRATrains: false,
+  showTaoyuanMrtLayer: false,
+  showTaoyuanMrtTrains: false,
+  showTaichungMrtLayer: false,
+  showTaichungMrtTrains: false,
+  showKaohsiungMrtLayer: false,
+  showKaohsiungMrtTrains: false,
+  showYouBikeLayer: false,
   currentTime: new Date(),
   selectedBase: {
     lat: 25.0339, 
     lng: 121.5644,
     name: "台北中央商務區 (Taipei CBD)"
   },
-  analysisPoint: {
-    lat: 25.0339,
-    lng: 121.5644
-  }
+  analysisPoint: null
 };
