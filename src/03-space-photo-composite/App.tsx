@@ -104,7 +104,7 @@ const App: React.FC = () => {
           <section className="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-4">
               <span className="w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs">1</span>
-              上傳底�? (?��??��?)
+              上傳底圖 (必填格式)
             </h2>
             <div className="relative group">
               <input 
@@ -123,29 +123,29 @@ const App: React.FC = () => {
                   <div className="relative w-full aspect-video rounded overflow-hidden">
                     <img src={referenceImage} alt="Reference" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <p className="text-white text-sm font-medium">點�??��??��?</p>
+                      <p className="text-white text-sm font-medium">點擊上傳場景照片</p>
                     </div>
                   </div>
                 ) : (
                   <>
                     <Upload className="text-gray-500 mb-2" size={24} />
-                    <p className="text-sm text-gray-400 text-center">點�?上傳?��??��?</p>
+                    <p className="text-sm text-gray-400 text-center">點擊上傳場景照片</p>
                   </>
                 )}
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">此照?��?作為?��??�基礎�?AI ?��??�此?��?上�??�物件�?不�??��??��??�景結�??</p>
+                    <p className="text-xs text-gray-500 mt-2">此照片作為合成基礎，AI 將在此照片上放置景觀物件</p>
           </section>
 
           {/* 2. Context Info */}
           <section className="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-4">
               <span className="w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs">2</span>
-              ?��?資�?補�?說�?
+              場景資訊補充說明
             </h2>
             <textarea
               className="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none h-20"
-              placeholder="請�?述場?�性質（�?如�??�代風格?�庭?�、�?業辦?�室?�口�?.."
+              placeholder="請描述場景性質（如：現代風格庭院、商業辦公室入口..."
               value={contextDescription}
               onChange={(e) => setContextDescription(e.target.value)}
             />
@@ -155,11 +155,11 @@ const App: React.FC = () => {
           <section className="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-4">
               <span className="w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs">3</span>
-              ?�件外�?/風格?�述
+              物件外觀/風格描述
             </h2>
             <textarea
               className="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none h-20"
-              placeholder="?��?要�??��??�件補�?細�??��?如�?人物?�穿?��??�制?�、樹?��??��?天�?黃�?..."
+              placeholder="如需補充物件細節，如：人物穿著制服、樹木茂盛、天空金黃..."
               value={objectPrompt}
               onChange={(e) => setObjectPrompt(e.target.value)}
             />
@@ -169,10 +169,11 @@ const App: React.FC = () => {
           <section className="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-4">
               <span className="w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs">4</span>
-              ?��?氛�??��?�?            </h2>
+              場景氛圍描述
+            </h2>
             <textarea
               className="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none h-20"
-              placeholder="例�?：�??��??��?影、�??�戲?�性�?夕陽?��?..."
+              placeholder="例如：電影感光影、遊戲性質、夕陽暖色..."
               value={atmosphereDescription}
               onChange={(e) => setAtmosphereDescription(e.target.value)}
             />
@@ -186,7 +187,7 @@ const App: React.FC = () => {
             onClick={handleReset}
             className="w-full py-4 px-4 bg-red-900/30 hover:bg-red-900/50 text-red-200 border border-red-900/50 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm mt-auto"
           >
-            <RotateCcw size={16} /> ?�新?��? (RESET)
+            <RotateCcw size={16} /> 重新設定 (RESET)
           </button>
 
         </div>
@@ -196,7 +197,7 @@ const App: React.FC = () => {
           <section className="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm h-full flex flex-col">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-4">
               <span className="w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs">5</span>
-              平面空�??�置 (?��?規�?)
+              平面空間配置 (必填規格)
             </h2>
             <div className="flex-1">
                <SpatialCanvas 
@@ -221,12 +222,12 @@ const App: React.FC = () => {
               {isGenerating ? (
                 <>
                   <Loader2 className="animate-spin" size={24} />
-                  ?��??��?�?..
+                  生成合成中..
                 </>
               ) : (
                 <>
                   <Sparkles size={24} />
-                  ?��??��??��?
+                  開始生成合成
                 </>
               )}
             </button>
@@ -238,7 +239,7 @@ const App: React.FC = () => {
           <section className="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm h-full min-h-[400px] flex flex-col">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-4">
               <span className="w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs">6</span>
-              ?��?結�?
+              合成結果
             </h2>
             
             <div className="flex-1 bg-black rounded-lg border-2 border-gray-800 flex items-center justify-center relative overflow-hidden group">
@@ -258,12 +259,12 @@ const App: React.FC = () => {
                   <div className="relative">
                     <div className="w-12 h-12 rounded-full border-4 border-gray-800 border-t-blue-500 animate-spin"></div>
                   </div>
-                  <p className="text-sm animate-pulse">�?��依照底�??��?置�??�中...</p>
+                  <p className="text-sm animate-pulse">正在依照底圖配置合成中...</p>
                 </div>
               ) : (
                 <div className="text-center p-6">
                   <ImageIcon className="mx-auto text-gray-700 mb-3" size={48} />
-                  <p className="text-sm text-gray-500">?��?後�??��?將�?顯示?�這裡?</p>
+                  <p className="text-sm text-gray-500">合成後的圖片將會顯示在這裡</p>
                 </div>
               )}
             </div>

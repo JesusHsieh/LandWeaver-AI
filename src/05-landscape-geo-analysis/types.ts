@@ -84,6 +84,11 @@ export interface LandscapeDesignData {
     };
   };
   landUseZone: string; // Taiwan Urban Planning Zone from NLSC
+  zoningRegulation: {
+    far: number | null;  // 容積率 %
+    bcr: number | null;  // 建蔽率 %
+    note: string;
+  };
   _sources: {
     admin:  'nlsc'               | 'fallback';
     zoning: 'nlscWms' | 'nlscWfs' | 'fallback';
@@ -124,6 +129,8 @@ export interface MapSettings {
   showSlopeSensitive: boolean;  // 08F 山坡地/地質敏感區 soil.swcb.gov.tw
   showDrinkingWater: boolean;   // 08G 飲用水保護區 epa.gov.tw
   showCulturalHeritage: boolean;// 08H 文化資產  文化部 BOCH
+  showZoningRegulation: boolean; // 08I 容積率/建蔽率 分區查表
+  showLandscapeStrategy: boolean; // AI 景觀／空間策略建議
   // ── 國土測繪額外圖層
   showNlscLandSect: boolean;   // 地籍圖 LANDSECT
   showNlscContour: boolean;    // 等高線 MOI_CONTOUR
@@ -182,6 +189,8 @@ export const INITIAL_SETTINGS: MapSettings = {
   showSlopeSensitive: false,
   showDrinkingWater: false,
   showCulturalHeritage: false,
+  showZoningRegulation: false,
+  showLandscapeStrategy: false,
   showNlscLandSect: false,
   showNlscContour: false,
   showNlscHillShade: false,

@@ -9,6 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@deck.gl/aggregation-layers": "^9.3.1",
+    "@deck.gl/core": "^9.3.1",
+    "@deck.gl/layers": "^9.3.1",
     "@google/genai": "^1.30.0",
     "@tailwindcss/vite": "^4.2.2",
     "cesium": "^1.140.0",

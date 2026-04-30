@@ -45,7 +45,7 @@ const Step1Upload: React.FC<Step1UploadProps> = ({ onImageUpload, uploadedImage,
                     {uploadedImage ? (
                         <img 
                             src={uploadedImage} 
-                            alt="上傳?�平?��?" 
+                            alt="已上傳的平面圖" 
                             className="w-full h-auto rounded-md max-h-[60vh] object-contain" 
                             crossOrigin="anonymous"
                         />

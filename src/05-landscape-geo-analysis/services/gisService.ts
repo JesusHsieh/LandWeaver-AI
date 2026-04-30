@@ -1,6 +1,43 @@
 import { MicroClimateData, LandscapeDesignData, ZoningCategory, PlantRecommendation } from '../types';
 
 // ============================================================
+// Zone + Town Cache（避免重複打 NLSC 慢 API）
+// key = "lat3,lng3"（四捨五入至 3 位小數，~110m 精度）
+// ============================================================
+type ZoneTownCache = { zone: string; town: AdminResult | null };
+const _zoneTownCache = new Map<string, ZoneTownCache>();
+const _zoneTownInFlight = new Map<string, Promise<ZoneTownCache>>();
+
+function _zoneKey(lat: number, lng: number) {
+  return `${lat.toFixed(3)},${lng.toFixed(3)}`;
+}
+
+async function fetchZoneAndTownCached(lat: number, lng: number): Promise<ZoneTownCache> {
+  const key = _zoneKey(lat, lng);
+  if (_zoneTownCache.has(key)) return _zoneTownCache.get(key)!;
+  if (_zoneTownInFlight.has(key)) return _zoneTownInFlight.get(key)!;
+
+  const promise = Promise.allSettled([
+    fetchNLSCTownVillage(lat, lng),
+    fetchUrbanPlanningZone(lat, lng),
+  ]).then(([townResult, zoneResult]) => {
+    const data: ZoneTownCache = {
+      zone: zoneResult.status === 'fulfilled' ? zoneResult.value : '查詢失敗',
+      town: townResult.status === 'fulfilled' ? townResult.value : null,
+    };
+    _zoneTownCache.set(key, data);
+    _zoneTownInFlight.delete(key);
+    if (_zoneTownCache.size > 60) {
+      _zoneTownCache.delete(_zoneTownCache.keys().next().value!);
+    }
+    return data;
+  });
+
+  _zoneTownInFlight.set(key, promise);
+  return promise;
+}
+
+// ============================================================
 // Internal API Return Types
 // ============================================================
 interface WeatherResult {
@@ -336,6 +373,47 @@ async function fetchUrbanPlanningZone(lat: number, lng: number): Promise<string>
 }
 
 // ============================================================
+// 08I：容積率 / 建蔽率 查表
+// 來源：都市計畫法施行細則及各縣市都市計畫通則典型值
+// ============================================================
+const ZONE_FAR_BCR: Record<string, { far: number; bcr: number }> = {
+  '住宅區':   { far: 160, bcr: 45 },
+  '住一':     { far:  80, bcr: 30 },
+  '住二':     { far: 160, bcr: 45 },
+  '住三':     { far: 225, bcr: 50 },
+  '住四':     { far: 300, bcr: 55 },
+  '住五':     { far: 360, bcr: 60 },
+  '住六':     { far: 400, bcr: 65 },
+  '商業區':   { far: 560, bcr: 70 },
+  '商一':     { far: 360, bcr: 60 },
+  '商二':     { far: 560, bcr: 70 },
+  '商三':     { far: 630, bcr: 70 },
+  '商四':     { far: 800, bcr: 80 },
+  '工業區':   { far: 200, bcr: 55 },
+  '工一':     { far: 140, bcr: 50 },
+  '工二':     { far: 200, bcr: 55 },
+  '工三':     { far: 300, bcr: 60 },
+  '農業區':   { far:  10, bcr: 10 },
+  '公園用地': { far:  15, bcr: 15 },
+  '學校用地': { far: 150, bcr: 50 },
+  '文教區':   { far: 120, bcr: 40 },
+  '保護區':   { far:   5, bcr:  5 },
+  '行政區':   { far: 150, bcr: 50 },
+  '綠地':     { far:  10, bcr: 10 },
+};
+
+function lookupZoningRegulation(zone: string): { far: number | null; bcr: number | null; note: string } {
+  if (ZONE_FAR_BCR[zone]) return { ...ZONE_FAR_BCR[zone], note: '都市計畫通則（典型值）' };
+  for (const [key, val] of Object.entries(ZONE_FAR_BCR)) {
+    if (zone.includes(key)) return { ...val, note: '都市計畫通則（典型值）' };
+  }
+  if (zone.includes('非都市') || zone === '計畫分區' || zone === '查詢失敗') {
+    return { far: null, bcr: null, note: '非都市計畫區，依土地使用管制規則' };
+  }
+  return { far: null, bcr: null, note: '分區資料不足，請洽當地主管機關' };
+}
+
+// ============================================================
 // Solar Position Calculation (天文公式，無需外部 API)
 // ============================================================
 function _solarAtTime(lat: number, lng: number, year: number, month: number, day: number, decimalHour: number) {
@@ -359,6 +437,11 @@ function _solarAtTime(lat: number, lng: number, year: number, month: number, day
 // Main GISService Export
 // ============================================================
 export const GISService = {
+
+  // 提前啟動 zone+town 查詢，與 getMicroClimateData 並行
+  prefetchZone(lat: number, lng: number): void {
+    fetchZoneAndTownCached(lat, lng);
+  },
 
   calculateSolarPosition(lat: number, lng: number, date: Date) {
     const h = date.getHours() + date.getMinutes() / 60;
@@ -455,14 +538,8 @@ export const GISService = {
     lat: number, lng: number, microClimate: MicroClimateData
   ): Promise<LandscapeDesignData> {
 
-    // Fetch location-specific real data in parallel
-    const [townResult, zoneResult] = await Promise.allSettled([
-      fetchNLSCTownVillage(lat, lng),
-      fetchUrbanPlanningZone(lat, lng),
-    ]);
-
-    const town = townResult.status === 'fulfilled' ? townResult.value : null;
-    const zone = zoneResult.status === 'fulfilled' ? zoneResult.value : '查詢失敗';
+    // Zone + town: use cache (pre-warmed by prefetchZone in App.tsx)
+    const { zone, town } = await fetchZoneAndTownCached(lat, lng);
 
     const landUseZone = town
       ? `${zone}（${town.county}${town.town}${town.sectName ? '·' + town.sectName : ''}）`
@@ -647,6 +724,8 @@ export const GISService = {
     // 保底：確保至少一條建議（避免空引號顯示）
     if (designSuggestions.length === 0) designSuggestions.push('選用適應當地氣候的原生植栽');
 
+    const zoningRegulation = lookupZoningRegulation(zone);
+
     return {
       zoning:      { category, intensity },
       urbanStress: { surfaceHeatIndex, albedo, surfaceTemp, windAdjustment, canyonEffect, downdraftRisk },
@@ -655,9 +734,10 @@ export const GISService = {
       seasonalSun,
       aiSummary,
       landUseZone,
+      zoningRegulation,
       _sources: {
-        admin:  townResult.status  === 'fulfilled' ? 'nlsc'    : 'fallback',
-        zoning: zoneResult.status  === 'fulfilled' ? 'nlscWms' : 'fallback',
+        admin:  town !== null          ? 'nlsc'    : 'fallback',
+        zoning: zone !== '查詢失敗'   ? 'nlscWms' : 'fallback',
       } as const,
       recommendations: {
         topPlants,

@@ -342,9 +342,9 @@ const SpatialCanvas: React.FC<SpatialCanvasProps> = ({ objects, setObjects, came
         <div className="flex items-center gap-2">
             <div className="flex flex-col shrink-0">
                 <span className="text-sm text-gray-400 font-semibold uppercase tracking-wider">
-                    {selectedId ? '編輯?��??�件' : '?��??�件類�?'}
+                    {selectedId ? '編輯選取物件' : '新增物件類型'}
                 </span>
-                {selectedId && <span className="text-[10px] text-emerald-400">�?��修改?��?上�??�件</span>}
+                {selectedId && <span className="text-[10px] text-emerald-400">點選修改或新增上方物件</span>}
             </div>
             
             <select 
@@ -352,29 +352,29 @@ const SpatialCanvas: React.FC<SpatialCanvasProps> = ({ objects, setObjects, came
                 value={selectedObjectType}
                 onChange={(e) => handleTypeChange(e.target.value as ObjectType)}
             >
-                <optgroup label="?��?設施 (New)">
-                    <option value={ObjectType.LandscapeRock}>?��???(Rock)</option>
-                    <option value={ObjectType.LandscapeLight}>?��???(Light)</option>
+                <optgroup label="景觀設施 (New)">
+                    <option value={ObjectType.LandscapeRock}>景觀石材 (Rock)</option>
+                    <option value={ObjectType.LandscapeLight}>景觀燈具 (Light)</option>
                     <option value={ObjectType.WaterFeature}>水景設施 (Water)</option>
-                    <option value={ObjectType.OutdoorPot}>?��??�栽 (Pot)</option>
+                    <option value={ObjectType.OutdoorPot}>景觀盆栽 (Pot)</option>
                 </optgroup>
-                <optgroup label="?�木 & 樹木">
-                    <option value={ObjectType.TreeBroadleaf}>?��?溫帶?�木</option>
-                    <option value={ObjectType.TreeConifer}>?��?科樹</option>
-                    <option value={ObjectType.TreePalm}>棕�?�</option>
+                <optgroup label="喬木 & 樹木">
+                    <option value={ObjectType.TreeBroadleaf}>落葉溫帶喬木</option>
+                    <option value={ObjectType.TreeConifer}>常綠科樹</option>
+                    <option value={ObjectType.TreePalm}>棕櫚樹</option>
                 </optgroup>
-                <optgroup label="?�木 & ?�被">
-                    <option value={ObjectType.ShrubSmall}>?��??</option>
-                    <option value={ObjectType.ShrubMedium}>中�??</option>
-                    <option value={ObjectType.ShrubLarge}>大�??</option>
-                    <option value={ObjectType.ShrubGroundCover}>?�被植物</option>
+                <optgroup label="灌木 & 地被">
+                    <option value={ObjectType.ShrubSmall}>小灌木</option>
+                    <option value={ObjectType.ShrubMedium}>中灌木</option>
+                    <option value={ObjectType.ShrubLarge}>大灌木</option>
+                    <option value={ObjectType.ShrubGroundCover}>地被植物</option>
                 </optgroup>
                 <optgroup label="家具">
-                    <option value={ObjectType.FurnitureChair}>椅�?</option>
-                    <option value={ObjectType.FurnitureTable}>桌�?</option>
+                    <option value={ObjectType.FurnitureChair}>椅子</option>
+                    <option value={ObjectType.FurnitureTable}>桌子</option>
                 </optgroup>
                 <optgroup label="人物">
-                    <option value={ObjectType.Man}>?�人</option>
+                    <option value={ObjectType.Man}>男人</option>
                     <option value={ObjectType.Woman}>女人</option>
                 </optgroup>
             </select>
@@ -384,14 +384,14 @@ const SpatialCanvas: React.FC<SpatialCanvasProps> = ({ objects, setObjects, came
                     onClick={addObject}
                     className="px-4 py-2 bg-emerald-700 hover:bg-blue-500 rounded-lg text-white font-medium text-sm flex items-center gap-1 transition-colors shrink-0"
                 >
-                    <Plus size={16} /> ?��?
+                    <Plus size={16} /> 新增
                 </button>
             ) : (
                 <button 
                     onClick={() => setSelectedId(null)}
                     className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-gray-200 font-medium text-sm flex items-center gap-1 transition-colors shrink-0"
                 >
-                    完�?
+                    完成
                 </button>
             )}
         </div>
@@ -431,7 +431,7 @@ const SpatialCanvas: React.FC<SpatialCanvasProps> = ({ objects, setObjects, came
         }}
       >
         <div className="absolute top-2 left-2 text-xs text-slate-500 bg-black/50 px-2 py-1 rounded pointer-events-none z-30">
-            平面?�置??(點�??�景?��??��?)
+            平面配置圖（點擊場景重新定位）
         </div>
         
         {renderFOV()}
@@ -459,7 +459,8 @@ const SpatialCanvas: React.FC<SpatialCanvasProps> = ({ objects, setObjects, came
                 </div>
             </div>
           <div className="mt-1 bg-black/70 text-white text-[10px] px-1.5 rounded whitespace-nowrap text-center pointer-events-none absolute top-10 left-1/2 -translate-x-1/2">
-            ?�影�?          </div>
+            攝影機
+          </div>
         </div>
 
         {/* Objects */}
@@ -505,7 +506,8 @@ const SpatialCanvas: React.FC<SpatialCanvasProps> = ({ objects, setObjects, came
       </div>
       
       <p className="text-xs text-center text-gray-500 italic">
-          點�??�件?�進�?編輯屬性�??�曳橘色?��?移�??�影機�?      </p>
+          點擊物件進入編輯屬性，拖曳橘色圓點移動攝影機。
+      </p>
     </div>
   );
 };

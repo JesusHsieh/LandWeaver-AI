@@ -1,11 +1,16 @@
 import React from 'react';
 import { MapSettings, MicroClimateData, LandscapeDesignData } from '../types';
 import { exportMd, exportTxt, exportPdf } from '../services/exportService';
+import { StrategyResult } from '../services/strategyService';
 
 interface RightPanelProps {
   settings: MapSettings;
   microData: MicroClimateData | null;
   landscapeData: LandscapeDesignData | null;
+  strategyData: StrategyResult | null;
+  strategyLoading: boolean;
+  strategyError: string | null;
+  onRetryStrategy: () => void;
 }
 
 /* ── Compact data row ── */
@@ -79,11 +84,14 @@ const windDir = (deg: number) => {
   return d[Math.round(deg / 45) % 8];
 };
 
-export const RightPanel: React.FC<RightPanelProps> = ({ settings, microData: data, landscapeData }) => {
+export const RightPanel: React.FC<RightPanelProps> = ({
+  settings, microData: data, landscapeData,
+  strategyData, strategyLoading, strategyError, onRetryStrategy,
+}) => {
 
   return (
     <aside
-      className="h-full flex flex-col z-10 overflow-y-auto"
+      className="h-full flex flex-col z-10"
       style={{
         width: '260px',
         background: '#141414',
@@ -296,6 +304,57 @@ export const RightPanel: React.FC<RightPanelProps> = ({ settings, microData: dat
           </section>
         )}
 
+        {/* ── 08I 容積率 / 建蔽率 ── */}
+        {settings.showZoningRegulation && landscapeData && (
+          <section>
+            <div className="gis-section-label mb-2">08I · 容積率 / 建蔽率</div>
+            <div
+              className="px-3 py-2 rounded mb-2"
+              style={{ background: '#1C1C1C', border: '1px solid #2A2A2A' }}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[9px]" style={{ color: '#888' }}>分區</span>
+                <span className="text-[10px] font-bold truncate max-w-[120px]" style={{ color: '#C8A84B' }}>
+                  {landscapeData.landUseZone.split('（')[0]}
+                </span>
+              </div>
+              {landscapeData.zoningRegulation.far !== null ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div
+                    className="text-center py-2 rounded"
+                    style={{ background: '#141414', border: '1px solid #2A2A2A' }}
+                  >
+                    <div className="text-[8px] mb-1" style={{ color: '#666' }}>容積率 FAR</div>
+                    <div className="text-[18px] font-mono font-bold" style={{ color: '#C8A84B' }}>
+                      {landscapeData.zoningRegulation.far}%
+                    </div>
+                  </div>
+                  <div
+                    className="text-center py-2 rounded"
+                    style={{ background: '#141414', border: '1px solid #2A2A2A' }}
+                  >
+                    <div className="text-[8px] mb-1" style={{ color: '#666' }}>建蔽率 BCR</div>
+                    <div className="text-[18px] font-mono font-bold" style={{ color: '#E05A2B' }}>
+                      {landscapeData.zoningRegulation.bcr}%
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[10px] py-1" style={{ color: '#666' }}>
+                  無法查詢（非都市計畫區）
+                </div>
+              )}
+            </div>
+            <div
+              className="text-[9px] px-2 py-1.5 rounded leading-relaxed"
+              style={{ background: 'rgba(200,168,75,0.06)', color: '#666', border: '1px solid rgba(200,168,75,0.12)' }}
+            >
+              {landscapeData.zoningRegulation.note}<br />
+              <span style={{ color: '#444' }}>實際以各縣市都市計畫自治條例為準</span>
+            </div>
+          </section>
+        )}
+
         {/* ── 微氣候分區 ── */}
         {settings.showZoning && landscapeData && (
           <section>
@@ -418,30 +477,111 @@ export const RightPanel: React.FC<RightPanelProps> = ({ settings, microData: dat
           </section>
         )}
 
-        {/* ── 系統診斷 ── */}
-        <section>
-          <div className="gis-section-label mb-2">Diagnostics · 系統診斷</div>
-          <div className="space-y-1 text-[10px]" style={{ color: '#888' }}>
-            {!settings.analysisPoint && (
-              <p>→ 點選地圖地點以啟動景觀決策引擎。</p>
+        {/* ── AI 診斷與建議 ── */}
+        {settings.showLandscapeStrategy && (
+          <section>
+            <div className="gis-section-label mb-2 flex items-center gap-1.5">
+              <span>AI · 診斷與建議</span>
+              <span
+                className="text-[8px] px-1.5 py-0.5 rounded font-bold"
+                style={{ background: 'rgba(188,253,73,0.12)', color: '#BCFD49', border: '1px solid rgba(188,253,73,0.25)' }}
+              >
+                GEMINI
+              </span>
+            </div>
+
+            {/* 未點選基地 */}
+            {!data && (
+              <div className="text-[10px] px-2 py-2 rounded" style={{ background: '#1C1C1C', color: '#555' }}>
+                點選地圖基地後，AI 將自動診斷場址並給出結論與建議
+              </div>
             )}
-            {data && data.pm25 > 35 && (
-              <p style={{ color: '#FF9800' }}>⚠ PM2.5 超標 ({data.pm25.toFixed(0)} µg/m³) — 建議耐汙染植栽。</p>
+
+            {/* 載入中 */}
+            {data && strategyLoading && (
+              <div className="flex flex-col gap-2 px-2 py-4 items-center">
+                <div className="flex gap-1">
+                  {[0,1,2].map(i => (
+                    <div key={i} className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: '#BCFD49', opacity: 0.8,
+                        animation: `pulse 1s ease-in-out ${i * 0.2}s infinite` }} />
+                  ))}
+                </div>
+                <span className="text-[10px]" style={{ color: '#666' }}>AI 正在診斷場址數據...</span>
+              </div>
             )}
-            {data && data._sources.weather === 'fallback' && (
-              <p style={{ color: '#FF9800' }}>⚠ 氣象 API 無法連線（Open-Meteo + CWA 均失敗），顯示估算值。</p>
+
+            {/* 錯誤 */}
+            {data && !strategyLoading && strategyError && (
+              <div className="px-2 py-2 rounded mb-2"
+                style={{ background: 'rgba(244,67,54,0.08)', border: '1px solid rgba(244,67,54,0.2)' }}>
+                <div className="text-[9px] mb-1.5" style={{ color: '#F44336' }}>{strategyError}</div>
+                <button onClick={onRetryStrategy}
+                  className="text-[9px] px-2 py-1 rounded hover:opacity-80"
+                  style={{ background: 'rgba(244,67,54,0.15)', color: '#F44336', border: '1px solid rgba(244,67,54,0.3)' }}>
+                  重新生成
+                </button>
+              </div>
             )}
-            {landscapeData && landscapeData.soil.waterloggingRisk === '高' && (
-              <p style={{ color: '#F44336' }}>⚠ 基地排水不良，植栽死亡率風險上升。</p>
+
+            {/* AI 診斷結果 */}
+            {data && !strategyLoading && strategyData && (
+              <>
+                {/* 診斷 */}
+                <div className="mb-3">
+                  <div className="text-[9px] font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#F44336' }}>
+                    ◆ 診斷
+                  </div>
+                  <div className="space-y-1">
+                    {strategyData.diagnosis.map((item, i) => (
+                      <div key={i} className="flex gap-2 px-2 py-1.5 rounded text-[10px] leading-relaxed"
+                        style={{ background: 'rgba(244,67,54,0.05)', border: '1px solid rgba(244,67,54,0.12)', color: '#C8C8C8' }}>
+                        <span className="shrink-0" style={{ color: '#F44336', opacity: 0.6 }}>▸</span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 結論 */}
+                <div className="mb-3">
+                  <div className="text-[9px] font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#C8A84B' }}>
+                    ◆ 結論
+                  </div>
+                  <div className="px-3 py-2.5 rounded text-[10px] leading-relaxed"
+                    style={{ background: 'rgba(200,168,75,0.06)', border: '1px solid rgba(200,168,75,0.18)', color: '#D4C080' }}>
+                    {strategyData.conclusion}
+                  </div>
+                </div>
+
+                {/* 建議 */}
+                <div className="mb-2">
+                  <div className="text-[9px] font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#BCFD49' }}>
+                    ◆ 建議
+                  </div>
+                  <div className="space-y-1">
+                    {strategyData.recommendations.map((item, i) => (
+                      <div key={i} className="flex gap-2 px-2 py-1.5 rounded text-[10px] leading-relaxed"
+                        style={{ background: 'rgba(188,253,73,0.04)', border: '1px solid rgba(188,253,73,0.12)', color: '#C8C8C8' }}>
+                        <span className="shrink-0 font-mono text-[9px] mt-0.5" style={{ color: '#BCFD49', opacity: 0.6 }}>
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button onClick={onRetryStrategy}
+                  className="w-full text-[9px] py-1.5 rounded mt-1 hover:opacity-70 transition-opacity"
+                  style={{ background: '#181818', color: '#444', border: '1px solid #222' }}>
+                  重新生成
+                </button>
+              </>
             )}
-            {landscapeData && landscapeData.urbanStress.surfaceTemp > 38 && (
-              <p style={{ color: '#F44336' }}>⚠ 地表蓄熱嚴重，建議噴霧或牆面綠化降溫。</p>
-            )}
-            {data && data._sources.weather === 'cwa' && !settings.analysisPoint && (
-              <p style={{ color: '#4CAF50' }}>✓ 所有 API 連線正常。</p>
-            )}
-          </div>
-        </section>
+          </section>
+        )}
+
       </div>
 
       {/* ── Export footer ── */}
@@ -473,6 +613,51 @@ export const RightPanel: React.FC<RightPanelProps> = ({ settings, microData: dat
           </div>
         </div>
       )}
+
+      {/* ── 系統診斷（永久固定在匯出報告下方）── */}
+      <div
+        className="px-4 py-3"
+        style={{ borderTop: '1px solid #1E1E1E' }}
+      >
+        <div className="gis-section-label mb-1.5">Diagnostics · 系統狀態</div>
+        <div className="space-y-0.5 text-[9px]" style={{ color: '#666' }}>
+          {!settings.analysisPoint && (
+            <p>→ 點選地圖地點以啟動景觀決策引擎</p>
+          )}
+          {data && data._sources.weather === 'fallback' && (
+            <p style={{ color: '#FF9800' }}>⚠ 氣象 API 失敗，顯示估算值</p>
+          )}
+          {data && data._sources.airQuality === 'fallback' && (
+            <p style={{ color: '#FF9800' }}>⚠ 空品 API 失敗，顯示估算值</p>
+          )}
+          {landscapeData && landscapeData._sources.zoning === 'fallback' && (
+            <p style={{ color: '#FF9800' }}>⚠ 都市計畫分區查詢失敗</p>
+          )}
+          {data && data.pm25 > 35 && (
+            <p style={{ color: '#FF9800' }}>⚠ PM2.5 超標 ({data.pm25.toFixed(0)} µg/m³)</p>
+          )}
+          {landscapeData && landscapeData.soil.waterloggingRisk === '高' && (
+            <p style={{ color: '#F44336' }}>⚠ 積水高風險</p>
+          )}
+          {landscapeData && landscapeData.urbanStress.surfaceTemp > 38 && (
+            <p style={{ color: '#F44336' }}>⚠ 地表蓄熱嚴重（{landscapeData.urbanStress.surfaceTemp.toFixed(1)}°C）</p>
+          )}
+          {landscapeData && landscapeData.urbanStress.canyonEffect && (
+            <p style={{ color: '#FF9800' }}>⚠ 街谷風效應明顯</p>
+          )}
+          {data && landscapeData && !([
+            data._sources.weather === 'fallback',
+            data._sources.airQuality === 'fallback',
+            landscapeData._sources.zoning === 'fallback',
+            data.pm25 > 35,
+            landscapeData.soil.waterloggingRisk === '高',
+            landscapeData.urbanStress.surfaceTemp > 38,
+            landscapeData.urbanStress.canyonEffect,
+          ].some(Boolean)) && (
+            <p style={{ color: '#4CAF50' }}>✓ 所有資料源正常，無環境異常</p>
+          )}
+        </div>
+      </div>
     </aside>
   );
 };

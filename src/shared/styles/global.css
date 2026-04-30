@@ -3,13 +3,36 @@
    Unified Tailwind CSS v4 entry point + Design Tokens
    ============================================================= */
 
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
 
 /* -------------------------------------------------------------
    Design Tokens — Brand Colors
    ------------------------------------------------------------- */
 @theme {
-  /* Primary brand (emerald green) */
+  /* ── Architectural Pulse Palette (portal & shared UI) ── */
+  /* Surfaces — tonal layering, dark "synthetic landscape" */
+  --color-ap-lowest:   #0d0f0c;   /* bedrock background        */
+  --color-ap-surface:  #121411;   /* primary content regions   */
+  --color-ap-low:      #1a1c19;   /* card / container          */
+  --color-ap-mid:      #1e201d;   /* secondary container       */
+  --color-ap-high:     #292b27;   /* elevated / hover state    */
+  --color-ap-highest:  #333532;   /* top layer / dividers      */
+
+  /* Neon lime accent */
+  --color-ap-primary:     #b6f642;   /* buttons, highlights    */
+  --color-ap-primary-dim: #9bd923;   /* dimmed / hover variant */
+  --color-ap-on-primary:  #233600;   /* text on neon buttons   */
+
+  /* Typography on dark */
+  --color-ap-on-surface:  #e3e3dd;   /* primary text           */
+  --color-ap-on-surface-var: #c2cab0; /* secondary / muted text */
+
+  /* Borders */
+  --color-ap-outline:     #8c947c;   /* visible outline        */
+  --color-ap-outline-var: #424935;   /* ghost / subtle border  */
+
+  /* ── Legacy brand green (kept for module-specific use) ── */
   --color-brand-50:  #ecfdf5;
   --color-brand-100: #d1fae5;
   --color-brand-200: #a7f3d0;
@@ -49,9 +72,9 @@
   --color-danger-hover:   #b91c1c;                  /* red-700 */
 
   /* Typography */
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-display: "Roboto", sans-serif;
+  --font-sans:    "Manrope", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Manrope", "Roboto", sans-serif;
 }
 
 /* -------------------------------------------------------------
@@ -80,5 +103,55 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: #6b7280; /* gray-500 */
+  }
+}
+
+/* -------------------------------------------------------------
+   Portal / Architectural Pulse — Shared Texture Utilities
+   Used by index.html and any module that opts into dark mode
+   ------------------------------------------------------------- */
+@layer utilities {
+  /* Fine grain noise at 3% — tactile depth on dark surfaces */
+  .ap-grain {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+  }
+
+  /* Topographic contour lines overlay */
+  .ap-topo {
+    background-image: url("data:image/svg+xml,%3Csvg width='800' height='800' viewBox='0 0 800 800' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 200 C150 150,300 250,450 200 S750 150,800 200 M0 400 C150 350,300 450,450 400 S750 350,800 400 M0 600 C150 550,300 650,450 600 S750 550,800 600' stroke='%23424935' fill='none' stroke-opacity='0.12'/%3E%3C/svg%3E");
+    background-size: cover;
+  }
+
+  /* 32 px architectural grid */
+  .ap-grid {
+    background-size: 32px 32px;
+    background-image:
+      linear-gradient(to right,  rgba(66,73,53,0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(66,73,53,0.04) 1px, transparent 1px);
+  }
+
+  /* Ambient corner glows */
+  .ap-glow-bl { background: radial-gradient(circle at bottom left,  rgba(182,246,66,0.07) 0%, transparent 55%); }
+  .ap-glow-tr { background: radial-gradient(circle at top    right, rgba(182,246,66,0.07) 0%, transparent 55%); }
+
+  /* Neon "Pulse" divider line */
+  .ap-pulse-divider {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(182,246,66,0.08) 20%,
+      rgba(182,246,66,0.35) 45%,
+      #b6f642 50%,
+      rgba(182,246,66,0.35) 55%,
+      rgba(182,246,66,0.08) 80%,
+      transparent 100%
+    );
+  }
+
+  /* Primary neon button hover glow */
+  .ap-btn-glow:hover {
+    box-shadow: 0 0 22px rgba(182,246,66,0.35);
   }
 }

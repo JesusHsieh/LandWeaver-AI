@@ -245,7 +245,9 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
     layers: 'LUIMAP',
     parameters: { transparent: 'true', format: 'image/png' },
     minimumLevel: 9,
-    maximumLevel: 16,
+    maximumLevel: 14,   // 14 已足夠辨識分區色塊，避免 zoom 15-16 的大量 tile 請求
+    tileWidth: 512,     // 512px tile = 4× 減少 HTTP 請求數
+    tileHeight: 512,
     credit: '內政部 NLSC · 都市計畫分區 LUIMAP',
   }), []);
 
@@ -611,13 +613,16 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
             {/* Solar Path Arc */}
             {settings.showShadows && (
               <>
-                {/* Arc path */}
+                {/* Arc path — must be separate entities: Cesium Entity only allows ONE PolylineGraphics per entity */}
                 <Entity>
                   <PolylineGraphics
                     positions={solarPathPositions}
                     width={2}
                     material={Color.ORANGE.withAlpha(0.7)}
                   />
+                </Entity>
+                {/* Azimuth ground-projection line */}
+                <Entity>
                   <PolylineGraphics
                     positions={getSolarLinePositions(400)}
                     width={3}

@@ -1,39 +1,76 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { RightPanel } from './components/RightPanel';
 import { MapControl } from './components/MapControl';
 import { INITIAL_SETTINGS, MapSettings, MicroClimateData, LandscapeDesignData } from './types';
 import { GISService } from './services/gisService';
+import { fetchLandscapeStrategy, StrategyResult } from './services/strategyService';
 import { format } from 'date-fns';
 
 export default function App() {
   const [settings, setSettings] = useState<MapSettings>(INITIAL_SETTINGS);
   const [microData, setMicroData] = useState<MicroClimateData | null>(null);
   const [landscapeData, setLandscapeData] = useState<LandscapeDesignData | null>(null);
+  const [strategyData, setStrategyData] = useState<StrategyResult | null>(null);
+  const [strategyLoading, setStrategyLoading] = useState(false);
+  const [strategyError, setStrategyError] = useState<string | null>(null);
+  const [strategyTrigger, setStrategyTrigger] = useState(0);
+  const strategyFetchingRef = useRef(false);
+  // Incremented every time the analysis point changes, so an in-flight fetch
+  // from the previous point can detect it has become stale and discard its result.
+  const strategyGenerationRef = useRef(0);
 
   // Effect 1：點選新基地 → 完整 API 呼叫（weather / EPA / PVGIS / elevation）
   // 不依賴 currentTime，避免時間軸拖動重打所有 API
   useEffect(() => {
     if (!settings.analysisPoint) return;
     let cancelled = false;
+    const { lat, lng } = settings.analysisPoint!;
+    // 立即啟動 zone+town 查詢（與氣象/日照並行，消除串接等待）
+    GISService.prefetchZone(lat, lng);
     (async () => {
       const micro = await GISService.getMicroClimateData(
-        settings.analysisPoint!.lat,
-        settings.analysisPoint!.lng,
+        lat, lng,
         settings.currentTime,
       );
       if (cancelled) return;
       setMicroData(micro);
-      const land = await GISService.getLandscapeDecisionData(
-        settings.analysisPoint!.lat,
-        settings.analysisPoint!.lng,
-        micro,
-      );
+      const land = await GISService.getLandscapeDecisionData(lat, lng, micro);
       if (cancelled) return;
       setLandscapeData(land);
     })();
     return () => { cancelled = true; };
   }, [settings.analysisPoint]); // ← 不含 currentTime，避免時間軸拖動重打 API
+
+  // Effect 2b：景觀策略開關 → 觸發 Gemini AI 評估
+  useEffect(() => {
+    if (!settings.showLandscapeStrategy || !microData || !landscapeData) return;
+    if (strategyData || strategyFetchingRef.current) return;
+    strategyFetchingRef.current = true;
+    const myGeneration = strategyGenerationRef.current;
+    setStrategyLoading(true);
+    setStrategyError(null);
+    fetchLandscapeStrategy(microData, landscapeData)
+      .then(result => {
+        if (strategyGenerationRef.current !== myGeneration) return; // stale — new point selected
+        setStrategyData(result);
+        setStrategyLoading(false);
+      })
+      .catch(err => {
+        if (strategyGenerationRef.current !== myGeneration) return; // stale
+        setStrategyError(err instanceof Error ? err.message : '策略生成失敗');
+        setStrategyLoading(false);
+      })
+      .finally(() => { strategyFetchingRef.current = false; });
+  }, [settings.showLandscapeStrategy, microData, landscapeData, strategyTrigger]);
+
+  // 分析點改變時清除舊策略，等待新資料
+  useEffect(() => {
+    strategyGenerationRef.current += 1;  // invalidate any in-flight fetch from the previous point
+    strategyFetchingRef.current = false;
+    setStrategyData(null);
+    setStrategyError(null);
+  }, [settings.analysisPoint]);
 
   // Effect 2：時間軸改變 → 僅本地重算太陽方位（無 API 呼叫）
   useEffect(() => {
@@ -114,10 +151,41 @@ export default function App() {
             : 'DRAG · ROTATE · ZOOM'}
         </div>
 
-        {/* Status */}
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] tracking-[0.2em] uppercase" style={{ color: '#555' }}>系統連線中</span>
-          <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#00FF90', boxShadow: '0 0 6px #00FF90' }} />
+        {/* Right side — Status + Home */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] tracking-[0.2em] uppercase" style={{ color: '#555' }}>系統連線中</span>
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#00FF90', boxShadow: '0 0 6px #00FF90' }} />
+          </div>
+          {/* Home button */}
+          <a
+            href="/"
+            title="回主頁"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded transition-all"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.09)',
+              color: '#888',
+              textDecoration: 'none',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(224,90,43,0.12)';
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(224,90,43,0.35)';
+              (e.currentTarget as HTMLAnchorElement).style.color = '#E05A2B';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.04)';
+              (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.09)';
+              (e.currentTarget as HTMLAnchorElement).style.color = '#888';
+            }}
+          >
+            {/* Home SVG icon */}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            <span className="text-[9px] tracking-[0.15em] uppercase hidden md:block">主頁</span>
+          </a>
         </div>
       </header>
 
@@ -154,7 +222,15 @@ export default function App() {
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
         }}
       >
-        <RightPanel settings={settings} microData={microData} landscapeData={landscapeData} />
+        <RightPanel
+          settings={settings}
+          microData={microData}
+          landscapeData={landscapeData}
+          strategyData={strategyData}
+          strategyLoading={strategyLoading}
+          strategyError={strategyError}
+          onRetryStrategy={() => { setStrategyData(null); setStrategyError(null); setStrategyTrigger(t => t + 1); }}
+        />
       </div>
 
       {/* ══════════════════════════════════════

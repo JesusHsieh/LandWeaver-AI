@@ -1,7 +1,7 @@
 
-import { GoogleGenAI } from "@google/genai";
 import { RenderStyle, Shape, ToolMode, PathMaterial, BackgroundType } from "../types";
-import { stripBase64Prefix, PATH_MATERIAL_COLORS } from "../utils";
+import { PATH_MATERIAL_COLORS } from "../utils";
+import { generateImage, getImageProvider } from "../../shared/imageGenerationService";
 
 export const generateLandscapePlan = async (
   sketchImageBase64: string,
@@ -11,15 +11,9 @@ export const generateLandscapePlan = async (
   customPrompt: string,
   width: number,
   height: number,
-  shapes: Shape[] // Accept shapes data to build precise prompt
+  shapes: Shape[]
 ): Promise<string> => {
-  const apiKey = localStorage.getItem('GEMINI_API_KEY') || process.env.API_KEY || '';
-  if (!apiKey) throw new Error("API Key is missing. Please set your Gemini API Key.");
 
-  const ai = new GoogleGenAI({ apiKey });
-  
-  // Using the Flash Image model for speed and efficiency with image inputs
-  const model = "gemini-2.5-flash-image"; 
 
   const stylePrompts: Record<RenderStyle, string> = {
     [RenderStyle.REALISTIC]: "Top-down aerial view, photorealistic landscape architecture render. High fidelity textures, ray-traced shadows, natural lighting. 8k resolution.",
@@ -193,56 +187,17 @@ export const generateLandscapePlan = async (
     ${customPrompt ? `Additional User Notes: ${customPrompt}` : ''}
   `;
 
-  const parts: any[] = [
-    { text: corePrompt },
-    {
-      inlineData: {
-        mimeType: "image/png",
-        data: stripBase64Prefix(sketchImageBase64),
-      },
-    },
-  ];
-
+  // Append style reference note to prompt for non-Gemini providers
+  let finalPrompt = corePrompt;
   if (styleRefImageBase64) {
-    parts.push({
-      inlineData: {
-        mimeType: "image/png", 
-        data: stripBase64Prefix(styleRefImageBase64),
-      },
-    });
-    parts[0].text += " \nSTYLE REFERENCE: Use the lighting, color palette, and rendering technique of the second image.";
+    finalPrompt += "\nSTYLE REFERENCE: Use the lighting, color palette, and rendering technique of the reference image provided.";
   }
 
-  const ratio = width / height;
-  let aspectRatioStr = "1:1";
-  if (ratio >= 1.7) aspectRatioStr = "16:9";
-  else if (ratio >= 1.3) aspectRatioStr = "4:3";
-  else if (ratio <= 0.6) aspectRatioStr = "9:16";
-  else if (ratio <= 0.8) aspectRatioStr = "3:4";
-
   try {
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: { parts },
-      config: {
-        imageConfig: {
-          aspectRatio: aspectRatioStr as any, 
-        }
-      }
-    });
-
-    const candidates = response.candidates;
-    if (candidates && candidates.length > 0) {
-      for (const part of candidates[0].content?.parts ?? []) {
-        if (part.inlineData && part.inlineData.data) {
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        }
-      }
-    }
-    
-    throw new Error("No image generated.");
+    // Pass sketch as reference image (Gemini will use it; other providers use text prompt only)
+    return await generateImage(finalPrompt, width, height, sketchImageBase64);
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    throw new Error(error.message || "Failed to generate image");
+    console.error("Image generation error:", error);
+    throw new Error(error.message || "圖片生成失敗");
   }
 };

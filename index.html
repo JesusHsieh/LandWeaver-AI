@@ -1,185 +1,563 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html class="dark" lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LandWeaver AI — 景觀 AI 工具集</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script id="tailwind-config">
     tailwind.config = {
+      darkMode: "class",
       theme: {
         extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'] },
           colors: {
-            forest: {
-              50:  '#f2f7f2',
-              100: '#e0ede0',
-              200: '#c2dbc2',
-              300: '#96c196',
-              400: '#62a062',
-              500: '#3d7d3d',
-              600: '#2d6330',
-              700: '#254f27',
-              800: '#1f3f21',
-              900: '#1a341c',
-            }
+            "surface-container-high": "#292a2a",
+            "error-container": "#93000a",
+            "inverse-on-surface": "#303031",
+            "secondary-container": "#484a46",
+            "on-primary-fixed-variant": "#344e00",
+            "tertiary-fixed": "#e2e3de",
+            "on-tertiary-container": "#636561",
+            "primary": "#ffffff",
+            "on-primary-fixed": "#121f00",
+            "background": "#050605",
+            "surface-dim": "#121414",
+            "surface-variant": "#343535",
+            "on-background": "#e3e2e2",
+            "secondary": "#c6c7c1",
+            "surface-container": "#1f2020",
+            "on-surface": "#e3e2e2",
+            "on-secondary": "#2f312d",
+            "surface-container-low": "#1b1c1c",
+            "on-secondary-fixed-variant": "#464743",
+            "on-error-container": "#ffdad6",
+            "surface-tint": "#9bd923",
+            "tertiary-fixed-dim": "#c6c7c2",
+            "tertiary-container": "#e2e3de",
+            "surface-container-lowest": "#050605",
+            "on-surface-variant": "#c2cab0",
+            "inverse-surface": "#e3e2e2",
+            "on-primary-container": "#4b6f00",
+            "surface-container-highest": "#343535",
+            "secondary-fixed": "#e3e3dd",
+            "secondary-fixed-dim": "#c6c7c1",
+            "on-error": "#690005",
+            "primary-fixed": "#b6f642",
+            "on-tertiary-fixed": "#1a1c19",
+            "on-primary": "#233600",
+            "on-tertiary": "#2f312e",
+            "outline-variant": "#424935",
+            "primary-container": "#b6f642",
+            "outline": "#8c947c",
+            "surface-bright": "#383939",
+            "error": "#ffb4ab",
+            "inverse-primary": "#476800",
+            "surface": "#050605",
+            "on-secondary-container": "#b8b9b3",
+            "tertiary": "#ffffff",
+            "on-tertiary-fixed-variant": "#454744",
+            "primary-fixed-dim": "#9bd923",
+            "on-secondary-fixed": "#1a1c19",
+            "biosphere-green": "#BCFD49",
+            "data-blue": "#00F0FF"
+          },
+          borderRadius: {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          spacing: {
+            "unit": "4px",
+            "xl": "40px",
+            "sm": "8px",
+            "md": "16px",
+            "lg": "24px",
+            "xs": "4px",
+            "gutter": "24px",
+            "margin-safe": "64px"
+          },
+          fontFamily: {
+            "headline-lg": ["Manrope"],
+            "label-caps": ["Manrope"],
+            "headline-xl": ["Manrope"],
+            "display-phase": ["Manrope"],
+            "body-lg": ["Manrope"],
+            "body-md": ["Manrope"]
+          },
+          fontSize: {
+            "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "300"}],
+            "label-caps": ["11px", {"lineHeight": "14px", "letterSpacing": "0.1em", "fontWeight": "600"}],
+            "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "200"}],
+            "display-phase": ["12px", {"lineHeight": "16px", "letterSpacing": "0.4em", "fontWeight": "700"}],
+            "body-lg": ["18px", {"lineHeight": "28px", "letterSpacing": "0em", "fontWeight": "400"}],
+            "body-md": ["16px", {"lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400"}]
           }
         }
       }
     }
   </script>
   <style>
-    body { font-family: 'Inter', sans-serif; }
-    .card-hover {
-      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    body {
+      background-color: #050605;
+      color: #e3e2e2;
+      overflow-x: hidden;
+      perspective: 1000px;
+      font-family: 'Manrope', sans-serif;
     }
-    .card-hover:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+
+    .cyber-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(188, 253, 73, 0.05) 0%, transparent 70%),
+        radial-gradient(circle at 0% 0%, rgba(0, 240, 255, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 100% 100%, rgba(188, 253, 73, 0.03) 0%, transparent 50%);
     }
-    .badge-ready { background: #dcfce7; color: #166534; }
+
+    .grid-plane {
+      position: absolute;
+      inset: -100% -50%;
+      background-image:
+        linear-gradient(rgba(188, 253, 73, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(188, 253, 73, 0.08) 1px, transparent 1px);
+      background-size: 50px 50px;
+      transform: rotateX(60deg) translateY(0);
+      animation: grid-move 20s linear infinite;
+      mask-image: radial-gradient(ellipse at center, black 20%, transparent 70%);
+    }
+
+    @keyframes grid-move {
+      0%   { transform: rotateX(60deg) translateY(0); }
+      100% { transform: rotateX(60deg) translateY(50px); }
+    }
+
+    .nebula {
+      position: absolute;
+      width: 60vw;
+      height: 60vw;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.15;
+      mix-blend-mode: screen;
+      pointer-events: none;
+      animation: nebula-shift 25s ease-in-out infinite alternate;
+    }
+
+    @keyframes nebula-shift {
+      0%   { transform: translate(-10%, -10%) scale(1);   opacity: 0.1; }
+      50%  { transform: translate(10%, 20%)  scale(1.2);  opacity: 0.2; }
+      100% { transform: translate(-20%, 10%) scale(0.9);  opacity: 0.15; }
+    }
+
+    .contour-path {
+      stroke: #BCFD49;
+      stroke-width: 0.5;
+      fill: none;
+      vector-effect: non-scaling-stroke;
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 1000;
+      animation: draw-path 15s linear infinite;
+      opacity: 0.2;
+    }
+
+    @keyframes draw-path {
+      0%   { stroke-dashoffset: 2000; opacity: 0; }
+      10%  { opacity: 0.3; }
+      90%  { opacity: 0.3; }
+      100% { stroke-dashoffset: 0; opacity: 0; }
+    }
+
+    .data-pulse {
+      stroke: #00F0FF;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-dasharray: 1, 50;
+      animation: pulse-flow 4s linear infinite;
+    }
+
+    @keyframes pulse-flow {
+      from { stroke-dashoffset: 100; }
+      to   { stroke-dashoffset: 0; }
+    }
+
+    .brand-glow {
+      text-shadow: 0 0 10px rgba(188, 253, 73, 0.3), 0 0 20px rgba(188, 253, 73, 0.2);
+      animation: neon-flicker 4s ease-in-out infinite;
+    }
+
+    @keyframes neon-flicker {
+      0%,  100% { text-shadow: 0 0 20px rgba(188,253,73,0.4), 0 0 40px rgba(188,253,73,0.2); opacity: 1; }
+      33%        { text-shadow: 0 0 30px rgba(188,253,73,0.6), 0 0 60px rgba(188,253,73,0.3); opacity: 0.95; }
+      35%        { text-shadow: 0 0 10px rgba(188,253,73,0.2), 0 0 20px rgba(188,253,73,0.1); opacity: 0.9; }
+      37%        { text-shadow: 0 0 30px rgba(188,253,73,0.6), 0 0 60px rgba(188,253,73,0.3); opacity: 1; }
+    }
+
+    .glass-card {
+      background: rgba(5, 6, 5, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(188, 253, 73, 0.1);
+      transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+      position: relative;
+    }
+
+    .glass-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 1px solid transparent;
+      background: linear-gradient(135deg, rgba(188,253,73,0.3), transparent, rgba(0,240,255,0.2)) border-box;
+      -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+    }
+
+    .glass-card:hover {
+      transform: translateY(-5px) scale(1.02);
+      border-color: rgba(188, 253, 73, 0.5);
+      box-shadow: 0 0 30px rgba(188, 253, 73, 0.1);
+    }
+
+    .glass-card:hover::before { opacity: 1; }
+
+    .glitch-hover:hover .glitch-text {
+      animation: glitch 0.3s cubic-bezier(.25,.46,.45,.94) both infinite;
+    }
+
+    @keyframes glitch {
+      0%   { transform: translate(0); }
+      20%  { transform: translate(-2px, 2px); }
+      40%  { transform: translate(-2px, -2px); }
+      60%  { transform: translate(2px, 2px); }
+      80%  { transform: translate(2px, -2px); }
+      100% { transform: translate(0); }
+    }
+
+    .btn-cyber {
+      background: rgba(188, 253, 73, 0.05);
+      border: 1px solid #BCFD49;
+      box-shadow: 0 0 10px rgba(188, 253, 73, 0.2);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-cyber:hover {
+      background: #BCFD49;
+      color: #050605;
+      box-shadow: 0 0 30px #BCFD49;
+    }
+
+    .btn-cyber::after {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: linear-gradient(transparent, rgba(188,253,73,0.2), transparent);
+      transform: rotate(45deg);
+      animation: scan-light 4s linear infinite;
+    }
+
+    @keyframes scan-light {
+      0%   { transform: rotate(45deg) translate(-100%, -100%); }
+      100% { transform: rotate(45deg) translate(100%, 100%); }
+    }
+
+    @keyframes scan-vertical {
+      0%   { top: 0;    opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+
+    /* card image */
+    .card-img {
+      filter: grayscale(1);
+      opacity: 0.3;
+      transition: filter 1s ease, opacity 1s ease, transform 1s ease;
+    }
+    .glass-card:hover .card-img {
+      filter: grayscale(0);
+      opacity: 0.6;
+      transform: scale(1.1);
+    }
   </style>
 </head>
-<body class="bg-slate-50 min-h-screen">
+<body class="selection:bg-primary-container selection:text-on-primary-container">
 
-  <!-- Header -->
-  <header class="bg-forest-800 text-white">
-    <div class="max-w-5xl mx-auto px-6 py-8">
-      <div class="flex items-center gap-4 mb-3">
-        <div class="w-10 h-10 bg-forest-400 rounded-xl flex items-center justify-center text-2xl">🌿</div>
-        <div>
-          <h1 class="text-2xl font-bold tracking-tight">LandWeaver AI</h1>
-          <p class="text-forest-300 text-sm">景觀設計 AI 工具集 · Landscape Design AI Suite</p>
+<!-- ── Animated Cyber Background ── -->
+<div class="cyber-bg">
+  <div class="grid-plane"></div>
+  <div class="nebula bg-biosphere-green" style="top:10%;left:10%;"></div>
+  <div class="nebula bg-data-blue" style="bottom:10%;right:10%;"></div>
+  <div class="absolute inset-0 opacity-20">
+    <svg height="100%" viewBox="0 0 1000 1000" width="100%" xmlns="http://www.w3.org/2000/svg">
+      <g filter="url(#displacementFilter)">
+        <path class="contour-path" d="M100,200 Q300,50 500,200 T900,200"></path>
+        <path class="contour-path data-pulse" d="M100,200 Q300,50 500,200 T900,200" style="animation-delay:-1s"></path>
+        <path class="contour-path" d="M0,500 Q200,350 400,500 T800,500"></path>
+        <path class="contour-path data-pulse" d="M0,500 Q200,350 400,500 T800,500" style="animation-delay:-2.5s"></path>
+        <path class="contour-path" d="M150,800 Q350,650 550,800 T950,800"></path>
+        <path class="contour-path data-pulse" d="M150,800 Q350,650 550,800 T950,800" style="animation-delay:-4s"></path>
+      </g>
+      <defs>
+        <filter id="displacementFilter">
+          <feTurbulence baseFrequency="0.01" numOctaves="3" result="noise" type="fractalNoise"></feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="20" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+        </filter>
+      </defs>
+    </svg>
+  </div>
+</div>
+
+<!-- ── Header ── -->
+<header class="w-full pt-32 pb-16 text-center flex flex-col items-center relative">
+  <h1 class="brand-glow font-black tracking-tighter text-primary leading-none" style="font-size:clamp(56px,10vw,96px);">
+    LANDWEAVER AI
+  </h1>
+  <p class="mt-4 text-on-surface-variant text-sm tracking-[0.05em]">
+    景觀設計 AI 工具集 · Landscape Design AI Suite
+  </p>
+  <div class="mt-6 inline-flex items-center px-5 py-2 rounded-full border border-primary-fixed-dim/30 bg-primary-fixed-dim/5 backdrop-blur-md">
+    <span class="font-display-phase text-[10px] tracking-[0.4em] text-primary-fixed-dim uppercase opacity-80 flex items-center gap-2">
+      <span class="w-1.5 h-1.5 rounded-full bg-biosphere-green animate-pulse"></span>
+      Architectural Intelligence Engine
+      <span class="w-1.5 h-1.5 rounded-full bg-data-blue animate-pulse"></span>
+    </span>
+  </div>
+</header>
+
+<!-- ── Main ── -->
+<main class="max-w-7xl mx-auto px-6 md:px-margin-safe pb-xl space-y-xl relative z-10">
+
+  <!-- ════ PHASE 01 · Site Analysis ════ -->
+  <section class="space-y-lg glitch-hover">
+    <div class="flex items-center gap-6">
+      <span class="font-display-phase text-primary-fixed-dim border border-primary-fixed-dim/40 px-4 py-1 bg-surface-container-lowest/50 backdrop-blur-sm">PHASE 01</span>
+      <h2 class="font-label-caps text-secondary tracking-[0.3em] glitch-text">SITE ANALYSIS</h2>
+      <div class="h-[1px] flex-grow bg-gradient-to-r from-biosphere-green/50 to-transparent"></div>
+    </div>
+
+    <a href="./src/05-landscape-geo-analysis/index.html" class="glass-card relative overflow-hidden group block rounded-lg">
+      <div class="flex flex-col md:flex-row min-h-[480px]">
+
+        <!-- Image panel -->
+        <div class="w-full md:w-3/5 relative h-[320px] md:h-auto overflow-hidden bg-[#050605]">
+          <!-- Tech grid overlay -->
+          <div class="absolute inset-0 opacity-20 pointer-events-none z-10">
+            <svg class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+              <pattern height="40" id="tech-grid-1" patternUnits="userSpaceOnUse" width="40">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#BCFD49" stroke-width="0.2"></path>
+                <circle cx="0" cy="0" fill="#00F0FF" r="1"></circle>
+              </pattern>
+              <rect fill="url(#tech-grid-1)" height="100%" width="100%"></rect>
+            </svg>
+          </div>
+          <!-- Placeholder illustration -->
+          <svg class="card-img absolute inset-0 w-full h-full" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="200" cy="150" r="120" fill="none" stroke="#b6f642" stroke-width="1" opacity="0.6"/>
+            <circle cx="200" cy="150" r="90"  fill="none" stroke="#b6f642" stroke-width="0.7" opacity="0.5"/>
+            <circle cx="200" cy="150" r="60"  fill="none" stroke="#9bd923" stroke-width="0.6" opacity="0.4"/>
+            <circle cx="200" cy="150" r="30"  fill="none" stroke="#9bd923" stroke-width="0.5" opacity="0.5"/>
+            <line x1="80"  y1="150" x2="320" y2="150" stroke="#424935" stroke-width="0.6" opacity="0.7"/>
+            <line x1="200" y1="30"  x2="200" y2="270" stroke="#424935" stroke-width="0.6" opacity="0.7"/>
+            <path d="M50 200 Q120 100 200 150 T350 120" fill="none" stroke="#9bd923" stroke-width="1.2" opacity="0.5"/>
+            <circle cx="200" cy="150" r="5" fill="#BCFD49" opacity="1"/>
+            <circle cx="200" cy="150" r="12" fill="none" stroke="#BCFD49" stroke-width="1" opacity="0.6"/>
+          </svg>
+          <div class="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent"></div>
+          <!-- Scan line on hover -->
+          <div class="absolute top-0 left-0 w-full h-1 bg-biosphere-green shadow-[0_0_15px_#BCFD49] opacity-0 group-hover:opacity-100 z-20" style="animation: scan-vertical 4s linear infinite;"></div>
+        </div>
+
+        <!-- Content panel -->
+        <div class="w-full md:w-2/5 p-12 flex flex-col justify-center space-y-8 bg-[#050605]/60 backdrop-blur-xl relative">
+          <div class="absolute top-4 right-4 text-[10px] font-display-phase text-data-blue opacity-50 tracking-widest">MODULE_01 · ACTIVE</div>
+          <div>
+            <span class="font-display-phase text-primary-fixed-dim block mb-3 text-sm">01.</span>
+            <h3 class="font-headline-lg text-primary text-3xl group-hover:text-biosphere-green transition-colors glitch-text">景觀地理分析 AI</h3>
+            <p class="font-body-md text-on-surface-variant mt-6 leading-relaxed opacity-80">
+              整合 3D 地球儀、日照模擬、微氣候分析與景觀決策引擎。點選基地即時獲取真實氣象、空品、高程、都市計畫分區與植栽建議。
+            </p>
+            <div class="mt-5 flex flex-wrap gap-2">
+              <span class="text-[10px] px-2.5 py-1 border border-biosphere-green/20 text-biosphere-green/60 tracking-wide rounded">CWA 氣象</span>
+              <span class="text-[10px] px-2.5 py-1 border border-biosphere-green/20 text-biosphere-green/60 tracking-wide rounded">EPA 空品</span>
+              <span class="text-[10px] px-2.5 py-1 border border-biosphere-green/20 text-biosphere-green/60 tracking-wide rounded">PVGIS 日照</span>
+              <span class="text-[10px] px-2.5 py-1 border border-biosphere-green/20 text-biosphere-green/60 tracking-wide rounded">NLSC 地籍</span>
+            </div>
+          </div>
+          <div>
+            <span class="btn-cyber inline-flex items-center gap-4 px-10 py-4 font-label-caps text-primary-fixed-dim rounded cursor-pointer">
+              LAUNCH ANALYSIS
+              <span class="material-symbols-outlined text-[20px]">north_east</span>
+            </span>
+          </div>
         </div>
       </div>
-      <p class="text-forest-200 text-sm max-w-2xl mt-4 leading-relaxed">
-        整合 5 個景觀設計 AI 工具，從平面配置到 3D 模擬，由 Gemini AI 驅動。<br>
-        使用前請先在根目錄建立 <code class="bg-forest-700 px-1.5 py-0.5 rounded text-forest-100 font-mono text-xs">.env.local</code> 並填入你的 Gemini API Key。
-      </p>
-      <a href="https://aistudio.google.com/apikey" target="_blank"
-         class="inline-flex items-center gap-2 mt-4 text-xs bg-forest-600 hover:bg-forest-500 text-white px-3 py-1.5 rounded-lg transition-colors">
-        🔑 取得免費 Gemini API Key
-      </a>
+    </a>
+  </section>
+
+  <!-- ════ PHASE 02 · Concept Development ════ -->
+  <section class="space-y-lg">
+    <div class="flex items-center gap-6">
+      <span class="font-display-phase text-primary-fixed-dim border border-primary-fixed-dim/40 px-4 py-1 bg-surface-container-lowest/50 backdrop-blur-sm">PHASE 02</span>
+      <h2 class="font-label-caps text-secondary tracking-[0.3em]">CONCEPT DEVELOPMENT</h2>
+      <div class="h-[1px] flex-grow bg-gradient-to-r from-data-blue/50 to-transparent"></div>
     </div>
-  </header>
 
-  <!-- Main -->
-  <main class="max-w-5xl mx-auto px-6 py-10 space-y-10">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
 
-    <!-- Group 1: 基地分析 -->
-    <section>
-      <div class="flex items-center gap-3 mb-5">
-        <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Phase 1</span>
-        <h2 class="text-sm font-bold text-slate-700">基地分析 · Site Analysis</h2>
-        <div class="flex-1 h-px bg-slate-200"></div>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-
-        <!-- 01 基地分析 -->
-        <a href="./src/05-landscape-geo-analysis/index.html"
-           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm sm:col-span-2">
-          <div class="flex items-start justify-between mb-4">
-            <div class="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center text-2xl">🌍</div>
-            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+      <!-- 01 · 景觀配置概念圖 AI -->
+      <a href="./src/01-landscape-concept-ai/index.html" class="glass-card flex flex-col group overflow-hidden glitch-hover min-h-[400px] rounded-lg block">
+        <div class="relative overflow-hidden bg-black/40" style="height:60%">
+          <svg class="card-img w-full h-full" viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg">
+            <rect x="60"  y="40"  width="80"  height="60" fill="none" stroke="#b6f642" stroke-width="1" opacity="0.6"/>
+            <rect x="170" y="55"  width="100" height="80" fill="none" stroke="#9bd923" stroke-width="0.8" opacity="0.5"/>
+            <circle cx="110" cy="70" r="20" fill="none" stroke="#b6f642" stroke-width="0.8" opacity="0.5"/>
+            <circle cx="270" cy="90" r="30" fill="none" stroke="#9bd923" stroke-width="0.6" opacity="0.4"/>
+            <path d="M60 150 Q120 120 180 145 T310 130" fill="none" stroke="#424935" stroke-width="1.2" opacity="0.6"/>
+          </svg>
+          <div class="absolute inset-0 bg-gradient-to-t from-[#050605] to-transparent"></div>
+          <div class="absolute top-0 left-0 w-full h-1 bg-biosphere-green shadow-[0_0_15px_#BCFD49] opacity-0 group-hover:opacity-100 z-20" style="animation: scan-vertical 3s linear infinite;"></div>
+        </div>
+        <div class="flex flex-col justify-between flex-grow relative z-10 p-6">
+          <div>
+            <div class="flex justify-between items-start">
+              <span class="font-display-phase text-primary-fixed-dim text-sm">01.</span>
+              <span class="material-symbols-outlined text-surface-variant group-hover:text-biosphere-green transition-all duration-500">architecture</span>
+            </div>
+            <h3 class="font-headline-lg text-primary text-2xl group-hover:text-biosphere-green glitch-text transition-colors duration-500 mt-2">景觀配置概念圖 AI</h3>
+            <p class="font-body-md text-on-surface-variant leading-relaxed opacity-70 mt-2">
+              繪製基地邊界、路徑與機能泡泡，AI 渲染成 20+ 種風格的景觀配置圖。
+            </p>
           </div>
-          <h3 class="font-semibold text-slate-800 mb-1">01 · 景觀地理分析 AI</h3>
-          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-            整合 3D 地球儀、日照模擬、微氣候分析與景觀決策引擎，點選基地即時獲取真實氣象、空品、高程、都市計畫分區與植栽建議。
-          </p>
-          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-            開啟工具 →
-          </span>
-        </a>
-
-      </div>
-    </section>
-
-    <!-- Group 2: 概念發展 -->
-    <section>
-      <div class="flex items-center gap-3 mb-5">
-        <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Phase 2</span>
-        <h2 class="text-sm font-bold text-slate-700">概念發展 · Concept Development</h2>
-        <div class="flex-1 h-px bg-slate-200"></div>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-
-        <!-- 01 景觀配置概念圖 AI -->
-        <a href="./src/01-landscape-concept-ai/index.html"
-           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
-          <div class="flex items-start justify-between mb-4">
-            <div class="w-12 h-12 bg-forest-50 rounded-xl flex items-center justify-center text-2xl">🗺️</div>
-            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+          <div class="flex justify-end pt-4">
+            <span class="material-symbols-outlined text-surface-variant group-hover:text-biosphere-green group-hover:translate-x-2 transition-all duration-500">arrow_forward</span>
           </div>
-          <h3 class="font-semibold text-slate-800 mb-1">01 · 景觀配置概念圖 AI</h3>
-          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-            繪製基地邊界、路徑與機能泡泡，AI 渲染成 20+ 種風格的景觀配置圖。
-          </p>
-          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-            開啟工具 →
-          </span>
-        </a>
+        </div>
+      </a>
 
-        <!-- 02 景觀建築平面魔法師 -->
-        <a href="./src/02-landscape-magic-planner/index.html"
-           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
-          <div class="flex items-start justify-between mb-4">
-            <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl">🏛️</div>
-            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+      <!-- 02 · 景觀建築平面魔法師 -->
+      <a href="./src/02-landscape-magic-planner/index.html" class="glass-card flex flex-col group overflow-hidden glitch-hover min-h-[400px] rounded-lg block">
+        <div class="relative overflow-hidden bg-black/40" style="height:60%">
+          <svg class="card-img w-full h-full" viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg">
+            <rect x="40"  y="30"  width="320" height="150" fill="none" stroke="#424935" stroke-width="0.8" opacity="0.7"/>
+            <line x1="40" y1="105" x2="360" y2="105" stroke="#424935" stroke-width="0.6" opacity="0.5"/>
+            <line x1="200" y1="30" x2="200" y2="180" stroke="#424935" stroke-width="0.6" opacity="0.5"/>
+            <rect x="80"  y="50"  width="100" height="80" fill="none" stroke="#b6f642" stroke-width="1" opacity="0.6"/>
+            <rect x="220" y="50"  width="100" height="80" fill="none" stroke="#9bd923" stroke-width="0.8" opacity="0.5"/>
+          </svg>
+          <div class="absolute inset-0 bg-gradient-to-t from-[#050605] to-transparent"></div>
+          <div class="absolute top-0 left-0 w-full h-1 bg-data-blue shadow-[0_0_15px_#00F0FF] opacity-0 group-hover:opacity-100 z-20" style="animation: scan-vertical 3s linear infinite;"></div>
+        </div>
+        <div class="flex flex-col justify-between flex-grow relative z-10 p-6">
+          <div>
+            <div class="flex justify-between items-start">
+              <span class="font-display-phase text-primary-fixed-dim text-sm">02.</span>
+              <span class="material-symbols-outlined text-surface-variant group-hover:text-data-blue transition-all duration-500">magic_button</span>
+            </div>
+            <h3 class="font-headline-lg text-primary text-2xl group-hover:text-data-blue glitch-text transition-colors duration-500 mt-2">景觀建築平面魔法師</h3>
+            <p class="font-body-md text-on-surface-variant leading-relaxed opacity-70 mt-2">
+              上傳基地平面圖，AI 渲染景觀配置、生成多角度場景並輸出專業簡報。
+            </p>
           </div>
-          <h3 class="font-semibold text-slate-800 mb-1">02 · 景觀建築平面魔法師</h3>
-          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-            上傳基地平面圖，AI 渲染景觀配置、生成多角度場景並輸出專業簡報，支援中英文。
-          </p>
-          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-            開啟工具 →
-          </span>
-        </a>
-
-        <!-- 03 -->
-        <a href="./src/03-space-photo-composite/index.html"
-           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
-          <div class="flex items-start justify-between mb-4">
-            <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-2xl">📸</div>
-            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+          <div class="flex justify-end pt-4">
+            <span class="material-symbols-outlined text-surface-variant group-hover:text-data-blue group-hover:translate-x-2 transition-all duration-500">arrow_forward</span>
           </div>
-          <h3 class="font-semibold text-slate-800 mb-1">03 · 空間與照片 AI 合成</h3>
-          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-            上傳現場照片，在 2D 平面圖上配置景觀元素，AI 將其精準合成至真實場景中。
-          </p>
-          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-            開啟工具 →
-          </span>
-        </a>
+        </div>
+      </a>
 
-        <!-- 04 -->
-        <a href="./src/04-3d-layout-simulation/index.html"
-           class="bg-white rounded-2xl border border-forest-200 p-6 card-hover flex flex-col shadow-sm">
-          <div class="flex items-start justify-between mb-4">
-            <div class="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center text-2xl">🧊</div>
-            <span class="badge-ready text-xs font-semibold px-2 py-1 rounded-full">可使用</span>
+      <!-- 03 · 空間與照片 AI 合成 -->
+      <a href="./src/03-space-photo-composite/index.html" class="glass-card flex flex-col group overflow-hidden glitch-hover min-h-[400px] rounded-lg block">
+        <div class="relative overflow-hidden bg-black/40" style="height:60%">
+          <svg class="card-img w-full h-full" viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg">
+            <rect x="60" y="30" width="280" height="150" rx="4" fill="none" stroke="#424935" stroke-width="0.8" opacity="0.6"/>
+            <circle cx="120" cy="90" r="30" fill="none" stroke="#b6f642" stroke-width="1" opacity="0.6"/>
+            <path d="M60 180 L160 110 L220 140 L280 80 L340 180Z" fill="none" stroke="#9bd923" stroke-width="1" opacity="0.5"/>
+            <line x1="60" y1="180" x2="340" y2="180" stroke="#424935" stroke-width="0.6" opacity="0.7"/>
+          </svg>
+          <div class="absolute inset-0 bg-gradient-to-t from-[#050605] to-transparent"></div>
+          <div class="absolute top-0 left-0 w-full h-1 bg-biosphere-green shadow-[0_0_15px_#BCFD49] opacity-0 group-hover:opacity-100 z-20" style="animation: scan-vertical 3s linear infinite;"></div>
+        </div>
+        <div class="flex flex-col justify-between flex-grow relative z-10 p-6">
+          <div>
+            <div class="flex justify-between items-start">
+              <span class="font-display-phase text-primary-fixed-dim text-sm">03.</span>
+              <span class="material-symbols-outlined text-surface-variant group-hover:text-biosphere-green transition-all duration-500">photo_camera</span>
+            </div>
+            <h3 class="font-headline-lg text-primary text-2xl group-hover:text-biosphere-green glitch-text transition-colors duration-500 mt-2">空間與照片 AI 合成</h3>
+            <p class="font-body-md text-on-surface-variant leading-relaxed opacity-70 mt-2">
+              上傳現場照片，在 2D 平面圖上配置景觀元素，AI 精準合成至真實場景中。
+            </p>
           </div>
-          <h3 class="font-semibold text-slate-800 mb-1">04 · 平面配置圖 AI 3D 模擬</h3>
-          <p class="text-sm text-slate-500 flex-1 mb-5 leading-relaxed">
-            上傳平面圖，標記視點與方向，AI 生成 3D 透視模擬效果圖，支援 20+ 種渲染風格。
-          </p>
-          <span class="text-center text-xs font-medium text-white bg-forest-600 hover:bg-forest-500 py-2 rounded-lg transition-colors">
-            開啟工具 →
-          </span>
-        </a>
+          <div class="flex justify-end pt-4">
+            <span class="material-symbols-outlined text-surface-variant group-hover:text-biosphere-green group-hover:translate-x-2 transition-all duration-500">arrow_forward</span>
+          </div>
+        </div>
+      </a>
 
-      </div>
-    </section>
+      <!-- 04 · 平面配置圖 AI 3D 模擬 -->
+      <a href="./src/04-3d-layout-simulation/index.html" class="glass-card flex flex-col group overflow-hidden glitch-hover min-h-[400px] rounded-lg block">
+        <div class="relative overflow-hidden bg-black/40" style="height:60%">
+          <svg class="card-img w-full h-full" viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="200,20 340,110 200,150 60,110" fill="none" stroke="#b6f642" stroke-width="1" opacity="0.6"/>
+            <polygon points="200,45 315,112 200,140 85,112" fill="none" stroke="#9bd923" stroke-width="0.7" opacity="0.4"/>
+            <line x1="200" y1="20"  x2="200" y2="150" stroke="#424935" stroke-width="0.6" opacity="0.6"/>
+            <line x1="60"  y1="110" x2="340" y2="110" stroke="#424935" stroke-width="0.6" opacity="0.6"/>
+            <circle cx="200" cy="100" r="7" fill="#BCFD49" opacity="0.8"/>
+          </svg>
+          <div class="absolute inset-0 bg-gradient-to-t from-[#050605] to-transparent"></div>
+          <div class="absolute top-0 left-0 w-full h-1 bg-data-blue shadow-[0_0_15px_#00F0FF] opacity-0 group-hover:opacity-100 z-20" style="animation: scan-vertical 3s linear infinite;"></div>
+        </div>
+        <div class="flex flex-col justify-between flex-grow relative z-10 p-6">
+          <div>
+            <div class="flex justify-between items-start">
+              <span class="font-display-phase text-primary-fixed-dim text-sm">04.</span>
+              <span class="material-symbols-outlined text-surface-variant group-hover:text-data-blue transition-all duration-500">view_in_ar</span>
+            </div>
+            <h3 class="font-headline-lg text-primary text-2xl group-hover:text-data-blue glitch-text transition-colors duration-500 mt-2">平面配置圖 AI 3D 模擬</h3>
+            <p class="font-body-md text-on-surface-variant leading-relaxed opacity-70 mt-2">
+              上傳平面圖，標記視點與方向，AI 生成 3D 透視模擬效果圖，支援 20+ 種渲染風格。
+            </p>
+          </div>
+          <div class="flex justify-end pt-4">
+            <span class="material-symbols-outlined text-surface-variant group-hover:text-data-blue group-hover:translate-x-2 transition-all duration-500">arrow_forward</span>
+          </div>
+        </div>
+      </a>
 
-  </main>
+    </div>
+  </section>
 
-  <!-- Footer -->
-  <footer class="text-center py-8 text-xs text-slate-400 border-t border-slate-200 mt-8">
-    LandWeaver AI · Open Source · Powered by Gemini AI ·
-    <a href="https://github.com/JesusHsieh/LandWeaver-AI" target="_blank" class="hover:text-slate-600 underline">GitHub</a>
-  </footer>
+</main>
 
+<!-- ── Footer ── -->
+<footer class="bg-transparent font-display-phase tracking-[0.1em] text-[11px] uppercase w-full py-16 border-t border-surface-variant/30 relative z-10 mt-xl">
+  <div class="max-w-7xl mx-auto px-16 flex flex-col md:flex-row justify-between items-center gap-8">
+    <div class="text-biosphere-green font-black tracking-[0.2em] opacity-60">
+      © 2025 LANDWEAVER AI · ARCHITECTURAL PRECISION &amp; ORGANIC VITALITY.
+    </div>
+    <div class="flex gap-10">
+      <a class="text-gray-500 hover:text-biosphere-green hover:drop-shadow-[0_0_8px_rgba(188,253,73,0.5)] transition-all duration-300"
+         href="https://github.com/JesusHsieh/LandWeaver-AI" target="_blank">GitHub</a>
+      <a class="text-gray-500 hover:text-data-blue hover:drop-shadow-[0_0_8px_rgba(0,240,255,0.5)] transition-all duration-300"
+         href="#" target="_blank">Documentation</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.addEventListener('mousemove', e => {
+    const x = (e.clientX / window.innerWidth)  * 100;
+    const y = (e.clientY / window.innerHeight) * 100;
+    document.documentElement.style.setProperty('--mouse-x', `${x}%`);
+    document.documentElement.style.setProperty('--mouse-y', `${y}%`);
+  });
+</script>
 </body>
 </html>

@@ -35,11 +35,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   
   const styles = Object.values(ViewStyle);
   const ratios: { value: AspectRatio; label: string }[] = [
-    { value: "1:1", label: "1:1 (�?���?" },
-    { value: "4:3", label: "4:3 (標�??��?)" },
-    { value: "3:4", label: "3:4 (?��??��?)" },
-    { value: "16:9", label: "16:9 (寬螢�?" },
-    { value: "9:16", label: "9:16 (?��?滿�?)" },
+    { value: "1:1", label: "1:1 (正方形)" },
+    { value: "4:3", label: "4:3 (標準橫版)" },
+    { value: "3:4", label: "3:4 (標準直版)" },
+    { value: "16:9", label: "16:9 (寬螢幕)" },
+    { value: "9:16", label: "9:16 (手機滿版)" },
   ];
 
   return (
@@ -48,20 +48,20 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         
         {/* Header */}
         <div>
-          <h2 className="text-xl font-bold text-white mb-2">?�數設�?</h2>
-          <p className="text-slate-400 text-sm">設�??��?視�??�風?��</p>
+          <h2 className="text-xl font-bold text-white mb-2">參數設定</h2>
+          <p className="text-slate-400 text-sm">設定相機視角與風格</p>
         </div>
 
         {/* Camera Control Section */}
         <div className="space-y-6 border-b border-slate-700 pb-6">
             <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                <Eye className="w-4 h-4" /> ?��?視�?
+                <Eye className="w-4 h-4" /> 設定視點
             </h3>
 
             {/* Direction Control */}
             <div className="space-y-3">
             <label className="text-xs font-medium text-slate-400 flex justify-between">
-                <span>水平?��? (Yaw)</span>
+                <span>水平旋轉 (Yaw)</span>
                 <span className="text-blue-400 font-mono">{Math.round(angle)}°</span>
             </label>
             <input
@@ -78,7 +78,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             {/* Height Control */}
             <div className="space-y-3">
                 <label className="text-xs font-medium text-slate-400 flex justify-between">
-                    <span>視�?高度 (Height)</span>
+                    <span>視點高度 (Height)</span>
                     <span className="text-blue-400 font-mono">{height} cm</span>
                 </label>
                 <div className="flex items-center gap-3">
@@ -99,13 +99,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             {/* Pitch Control */}
             <div className="space-y-3">
                 <label className="text-xs font-medium text-slate-400 flex justify-between">
-                    <span>?�直角度 (Pitch)</span>
+                    <span>垂直角度 (Pitch)</span>
                     <span className="text-blue-400 font-mono">{pitch}°</span>
                 </label>
                 <div className="flex items-center gap-2 text-xs text-slate-500 mb-1 justify-between px-1">
-                    <span>俯�?</span>
-                    <span>平�?</span>
-                    <span>仰�?</span>
+                    <span>俯角</span>
+                    <span>平視</span>
+                    <span>仰角</span>
                 </div>
                 <input
                     type="range"
@@ -126,12 +126,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         {/* Style & Ratio Selection */}
         <div className="space-y-6">
             <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                <Monitor className="w-4 h-4" /> 輸出設�?
+                <Monitor className="w-4 h-4" /> 輸出設定
             </h3>
 
             {/* Style Selection */}
             <div className="space-y-3">
-            <label className="text-xs font-medium text-slate-300">渲�?風格</label>
+            <label className="text-xs font-medium text-slate-300">渲染風格</label>
             <div className="relative">
                 <select
                 value={config.style}
@@ -152,7 +152,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
             {/* Ratio Selection */}
             <div className="space-y-3">
-                <label className="text-xs font-medium text-slate-300">?��?比�?</label>
+                <label className="text-xs font-medium text-slate-300">輸出比例</label>
                 <div className="relative">
                     <select
                     value={config.ratio}
@@ -174,11 +174,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
         {/* Text Prompt */}
         <div className="space-y-3 pt-4 border-t border-slate-700">
-          <label className="text-sm font-medium text-slate-300">?��?說�??�強 (?�填)</label>
+          <label className="text-sm font-medium text-slate-300">場景說明增強 (選填)</label>
           <textarea
             value={config.prompt}
             onChange={(e) => onConfigChange({ ...config, prompt: e.target.value })}
-            placeholder="例�?：�?亮�??��??�木質地?�、�?高天?�板..."
+            placeholder="例如：明亮現代風格木質地板、挑高天花板..."
             className="w-full h-24 bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none resize-none"
           />
         </div>
@@ -193,12 +193,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             {isGenerating ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                ?��?�?..
+                渲染中..
               </>
             ) : (
               <>
                 <Wand2 className="w-5 h-5" />
-                ?��? 3D 模擬??              </>
+                生成 3D 模擬圖
+              </>
             )}
           </button>
           
@@ -207,7 +208,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-transparent border border-slate-600 hover:bg-slate-700 rounded-lg text-slate-300 text-sm transition-colors"
           >
             <RefreshCcw className="w-4 h-4" />
-            ?�新?��?
+            重新渲染
           </button>
         </div>
       </div>

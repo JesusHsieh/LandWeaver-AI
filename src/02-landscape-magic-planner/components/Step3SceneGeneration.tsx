@@ -42,7 +42,7 @@ interface Step3SceneGenerationProps {
     onScenePointsChange: React.Dispatch<React.SetStateAction<ScenePoint[]>>;
 }
 
-const styleEmojis = ['?Œ¿', '?ª¨', '?Œº', '?Œ²', '?’§', '?©ï?'];
+const styleEmojis = ['?ÂŒÂ¿', '?ÂªÂ¨', '?ÂŒÂº', '?ÂŒÂ²', '?Â’Â§', '?Â©Ã¯?'];
 
 const Step3SceneGeneration: React.FC<Step3SceneGenerationProps> = ({ 
     finalPlanImage, 
@@ -361,7 +361,7 @@ const Step3SceneGeneration: React.FC<Step3SceneGenerationProps> = ({
                 <img 
                     ref={imageRef}
                     src={finalPlanImage} 
-                    alt="?€çµ‚å¹³?¢å?" 
+                    alt="?Â€Ã§ÂµÂ‚Ã¥Â¹Â³?Â¢Ã¥?" 
                     className="w-full h-auto rounded-md opacity-80"
                     crossOrigin="anonymous"
                 />
@@ -501,7 +501,7 @@ const Step3SceneGeneration: React.FC<Step3SceneGenerationProps> = ({
                             >
                                 <img 
                                     src={scene.url} 
-                                    alt={`è¦–è? ${index + 1} - ${scene.style}`} 
+                                    alt={`Ã¨Â¦Â–Ã¨? ${index + 1} - ${scene.style}`} 
                                     className="w-full h-full object-cover aspect-square"
                                 />
                                 <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">

@@ -2,17 +2,17 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-// FIX: Added Modality to imports for use in image editing model config.
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { GenerateContentResponse, Part } from "@google/genai";
 import { GeneratedScene } from '../components/Step3SceneGeneration';
-// FIX: Corrected import path for i18n module.
 import { Language } from "../lib/i18n";
-
+import { generateImage as sharedGenerateImage } from "../../shared/imageGenerationService";
 
 const getAI = (): GoogleGenAI => {
-  const key = localStorage.getItem('GEMINI_API_KEY') || process.env.API_KEY || '';
-  return new GoogleGenAI({ apiKey: key });
+  const key = localStorage.getItem('GEMINI_API_KEY')
+    || (localStorage.getItem('IMAGE_GEN_PROVIDER') === 'gemini' ? localStorage.getItem('IMAGE_GEN_KEY') : '')
+    || process.env.API_KEY || '';
+  return new GoogleGenAI({ apiKey: key || '' });
 };
 
 
@@ -61,35 +61,13 @@ function processGeminiResponse(response: GenerateContentResponse): string {
  * @param textPart The text part of the request payload.
  * @returns The GenerateContentResponse from the API.
  */
-async function callGeminiWithRetry(imagePart: object, textPart: object): Promise<GenerateContentResponse> {
-    const maxRetries = 3;
-    const initialDelay = 1000;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            return await getAI().models.generateContent({
-                model: 'gemini-2.0-flash-preview-image-generation',
-                contents: { parts: [imagePart, textPart] },
-                config: {
-                    responseModalities: [Modality.IMAGE],
-                }
-            });
-        } catch (error) {
-            console.error(`Error calling Gemini API (Attempt ${attempt}/${maxRetries}):`, error);
-            const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
-            const isInternalError = errorMessage.includes('"code":500') || errorMessage.includes('INTERNAL');
-
-            if (isInternalError && attempt < maxRetries) {
-                const delay = initialDelay * Math.pow(2, attempt - 1);
-                console.log(`Internal error detected. Retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                continue;
-            }
-            throw error; // Re-throw if not a retriable error or if max retries are reached.
-        }
-    }
-    // This should be unreachable due to the loop and throw logic above.
-    throw new Error("Gemini API call failed after all retries.");
+async function callGeminiWithRetry(imagePart: any, textPart: any): Promise<{ dataUrl: string }> {
+    const prompt: string = textPart?.text || '';
+    const refBase64: string | undefined = imagePart?.inlineData
+      ? `data:image/png;base64,${imagePart.inlineData.data}`
+      : undefined;
+    const dataUrl = await sharedGenerateImage(prompt, 1024, 768, refBase64);
+    return { dataUrl };
 }
 
 
@@ -146,59 +124,17 @@ function generatePromptVariations(basePrompt: string): string {
  * @returns Promise resolving to data URL of generated image
  */
 export async function generateArchitecturalImage(parts: any[]): Promise<string> {
-    const maxAttempts = 7;
-    let attempts = 0;
-    
-    // FIX: Updated config for 'gemini-2.0-flash-preview-image-generation' model according to guidelines.
-    // This model only supports `responseModalities`.
-    const payload = { 
-        contents: { parts }, 
-        config: { 
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-        }
-    };
-    
-    while(attempts < maxAttempts) {
-        try {
-            console.log(`Architectural image generation attempt ${attempts + 1}/${maxAttempts}`);
-            const response = await getAI().models.generateContent({
-                model: 'gemini-2.0-flash-preview-image-generation',
-                ...payload
-            });
-            
-            // Check for blocked content
-            if (response.candidates?.[0]?.finishReason === 'SAFETY') {
-                throw new Error('Content was blocked by safety filters');
-            }
-            
-            const imagePart = response?.candidates?.[0]?.content?.parts?.find(p => (p as any).inlineData);
-            if (imagePart && (imagePart as any).inlineData?.data) {
-                console.log('Architectural image generation successful');
-                return `data:image/png;base64,${(imagePart as any).inlineData.data}`;
-            }
-            
-            // Extract text if available for better error info
-            const textPart = response?.candidates?.[0]?.content?.parts?.find(p => p.text);
-            const textContent = textPart ? textPart.text : 'No content returned';
-            
-            throw new Error(`API response did not contain image data. Model output: ${textContent}`);
-        } catch (error) {
-            attempts++;
-            console.error(`Attempt ${attempts} failed:`, error);
-            
-            if (attempts >= maxAttempts) {
-                console.error('All attempts failed, throwing error');
-                throw new Error(`Architectural image generation failed after ${maxAttempts} attempts. Last error: ${error instanceof Error ? error.message : String(error)}`);
-            }
-            
-            // Progressive backoff: 2s, 4s, 8s, 16s, 32s, 64s
-            const backoffTime = Math.min(Math.pow(2, attempts) * 1000, 60000);
-            console.log(`Waiting ${backoffTime/1000}s before retry...`);
-            await new Promise(resolve => setTimeout(resolve, backoffTime));
-        }
-    }
-    
-    throw new Error('Architectural image generation failed after all attempts');
+    // Extract text prompt from parts (first text part found)
+    const textPart = parts.find((p: any) => typeof p.text === 'string');
+    const prompt: string = textPart?.text || '';
+
+    // Extract first inline image as reference (if any)
+    const imgPart = parts.find((p: any) => p.inlineData?.data);
+    const refBase64: string | undefined = imgPart
+      ? `data:image/png;base64,${imgPart.inlineData.data}`
+      : undefined;
+
+    return await sharedGenerateImage(prompt, 1024, 768, refBase64);
 }
 
 /**
@@ -504,37 +440,23 @@ export async function generateDecadeImage(imageDataUrl: string, prompt: string):
     try {
         console.log("Attempting generation with original prompt...");
         const textPart = { text: prompt };
-        const response = await callGeminiWithRetry(imagePart, textPart);
-        return processGeminiResponse(response);
+        const result = await callGeminiWithRetry(imagePart, textPart);
+        return result.dataUrl;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
-        const isNoImageError = errorMessage.includes("The AI model responded with text instead of an image");
-
-        if (isNoImageError) {
-            console.warn("Original prompt was likely blocked. Trying a fallback prompt.");
-            const decade = extractDecade(prompt);
-            if (!decade) {
-                console.error("Could not extract decade from prompt, cannot use fallback.");
-                throw error; // Re-throw the original "no image" error.
-            }
-
-            // --- Second attempt with the fallback prompt ---
+        const decade = extractDecade(prompt);
+        if (decade) {
             try {
                 const fallbackPrompt = getFallbackPrompt(decade);
-                console.log(`Attempting generation with fallback prompt for ${decade}...`);
-                const fallbackTextPart = { text: fallbackPrompt };
-                const fallbackResponse = await callGeminiWithRetry(imagePart, fallbackTextPart);
-                return processGeminiResponse(fallbackResponse);
+                console.log(`Retrying with fallback prompt for ${decade}...`);
+                const result = await callGeminiWithRetry(imagePart, { text: fallbackPrompt });
+                return result.dataUrl;
             } catch (fallbackError) {
-                console.error("Fallback prompt also failed.", fallbackError);
-                const finalErrorMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-                throw new Error(`The AI model failed with both original and fallback prompts. Last error: ${finalErrorMessage}`);
+                const finalMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+                throw new Error(`圖片生成失敗（原始與備用 prompt 均失敗）: ${finalMsg}`);
             }
-        } else {
-            // This is for other errors, like a final internal server error after retries.
-            console.error("An unrecoverable error occurred during image generation.", error);
-            throw new Error(`The AI model failed to generate an image. Details: ${errorMessage}`);
         }
+        throw new Error(`圖片生成失敗: ${errorMessage}`);
     }
 }
 

@@ -170,7 +170,7 @@ const Step2Rendering: React.FC<Step2RenderingProps> = ({ originalImage, onRender
         const autoMaterialPrompt = `Enhance this architectural rendering with realistic materials and textures:
 
 SYMBOL INTERPRETATION:
-- A rectangle or square with a large 'X' drawn through it is a system cabinet (系統�?. Render this as a built-in system cabinet with a top-down view.
+- A rectangle or square with a large 'X' drawn through it is a system cabinet (系統機櫃). Render this as a built-in system cabinet with a top-down view.
 
 FURNITURE & FIXTURES:
 - For any furniture like beds, sofas, wardrobes, and cabinets, apply varied and distinct colors and materials for each individual piece. For example, if there are two sofas, render them in different colors to create a more dynamic and diverse interior.

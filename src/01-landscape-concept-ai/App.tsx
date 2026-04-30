@@ -11,7 +11,6 @@ import DrawingCanvas from './components/DrawingCanvas';
 import { ToolMode, Shape, RenderStyle, TerrainMaterial, PathMaterial, BackgroundType, ArrowType, LineStyle } from './types';
 import { fileToBase64, PATH_MATERIAL_COLORS, PATH_MATERIAL_LABELS, TERRAIN_MATERIAL_LABELS, BACKGROUND_LABELS, STYLE_LABELS } from './utils';
 import { generateLandscapePlan } from './services/geminiService';
-import html2canvas from 'html2canvas';
 
 // Component Styles
 const BUTTON_CLASS = "p-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-xs font-medium relative group cursor-pointer";
@@ -145,7 +144,7 @@ const App: React.FC = () => {
           setPixelsPerMeter(newScale);
           setToolMode(ToolMode.BACKGROUND); // Automatically return to settings
       } else {
-          alert("請確保校�?��度大??0");
+          alert("請確保校準長度大於0");
       }
   };
 
@@ -181,14 +180,41 @@ const App: React.FC = () => {
     setGeneratedImage(null);
 
     try {
-        // 1. Capture the canvas
-        const canvasElement = await html2canvas(canvasRef.current, {
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff'
+        // 1. Capture the canvas via SVG serialization (avoids oklch color issues with html2canvas)
+        const svgEl = canvasRef.current.querySelector('svg');
+        if (!svgEl) throw new Error("Canvas SVG not found");
+
+        const canvasW = canvasRef.current.clientWidth;
+        const canvasH = canvasRef.current.clientHeight;
+
+        const offscreen = document.createElement('canvas');
+        offscreen.width = canvasW;
+        offscreen.height = canvasH;
+        const ctx = offscreen.getContext('2d')!;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvasW, canvasH);
+
+        if (backgroundImage && showBackground) {
+            await new Promise<void>((res) => {
+                const bg = new Image();
+                bg.onload = () => { ctx.globalAlpha = 0.5; ctx.drawImage(bg, 0, 0, canvasW, canvasH); ctx.globalAlpha = 1; res(); };
+                bg.onerror = () => res();
+                bg.src = backgroundImage;
+            });
+        }
+
+        const svgStr = new XMLSerializer().serializeToString(svgEl);
+        const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+        const svgUrl = URL.createObjectURL(svgBlob);
+        await new Promise<void>((res, rej) => {
+            const img = new Image();
+            img.onload = () => { ctx.drawImage(img, 0, 0); URL.revokeObjectURL(svgUrl); res(); };
+            img.onerror = rej;
+            img.src = svgUrl;
         });
-        
-        const sketchBase64 = canvasElement.toDataURL('image/png');
+
+        const sketchBase64 = offscreen.toDataURL('image/png');
 
         // 2. Call API
         const resultImage = await generateLandscapePlan(
@@ -206,7 +232,7 @@ const App: React.FC = () => {
 
     } catch (err: any) {
         console.error(err);
-        setErrorMsg(err.message || "?��?失�?");
+        setErrorMsg(err.message || "生成失敗");
     } finally {
         setIsGenerating(false);
     }
@@ -297,7 +323,7 @@ const App: React.FC = () => {
             <button 
                 onClick={(e) => toggleLock(mode, e)}
                 className={`absolute -top-1 -right-1 p-1 rounded-full shadow-sm border ${isLocked ? 'bg-red-100 border-red-300 text-red-600' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'} cursor-pointer`}
-                title={isLocked ? "�??" : "?��?"}
+                title={isLocked ? "鎖定" : "解鎖"}
             >
                 {isLocked ? <Lock size={10} /> : <Unlock size={10} />}
             </button>
@@ -328,19 +354,19 @@ const App: React.FC = () => {
                 
                 {/* Upload */}
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">底�?來�?</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">底圖來源</span>
                     <button 
                         onClick={() => fileInputRef.current?.click()}
                         className="bg-white border border-slate-300 hover:bg-slate-50 rounded px-2 py-1 text-sm flex items-center gap-1.5 transition-colors cursor-pointer text-slate-900"
                     >
                         <Upload size={14} className="text-slate-600"/>
-                        <span className="font-medium">上傳?��?</span>
+                        <span className="font-medium">上傳底圖</span>
                     </button>
                 </div>
 
                 {/* Visibility */}
                 <div className="flex flex-col gap-0.5 border-l pl-3 border-slate-200 ml-1">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">顯示設�?</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">顯示設定</span>
                     <button 
                         onClick={() => setShowBackground(!showBackground)}
                         className={`border rounded px-2 py-1 text-sm flex items-center gap-1.5 transition-colors cursor-pointer ${!showBackground ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-white border-slate-300 text-slate-900'}`}
@@ -352,7 +378,7 @@ const App: React.FC = () => {
 
                 {/* Background Type Dropdown */}
                 <div className="flex flex-col gap-0.5 border-l pl-3 border-slate-200 ml-1">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">?�景?�質 (?��?)</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">背景材質 (選填)</span>
                     <select 
                         value={backgroundType}
                         onChange={(e) => setBackgroundType(e.target.value as BackgroundType)}
@@ -372,7 +398,7 @@ const App: React.FC = () => {
                         className="bg-white border border-slate-300 hover:bg-slate-50 rounded px-2 py-1 text-sm flex items-center gap-1.5 transition-colors cursor-pointer text-slate-900"
                     >
                         <Ruler size={14} className="text-slate-600"/>
-                        <span className="font-medium">比�??�正</span>
+                        <span className="font-medium">比例校正</span>
                     </button>
                 </div>
             </>
@@ -387,14 +413,14 @@ const App: React.FC = () => {
                     <div className="p-1.5 bg-emerald-100 rounded-md text-emerald-700">
                         <Ruler size={18} />
                     </div>
-                    <span className="text-sm font-bold text-slate-900">?�出一條�?並輸?�長度�?</span>
+                    <span className="text-sm font-bold text-slate-900">畫出一條線並輸入長度</span>
                     <input 
                         type="number" 
                         value={calibrationLength}
                         onChange={(e) => setCalibrationLength(parseFloat(e.target.value) || 0)}
                         className={`${INPUT_STYLE} w-24 font-bold text-center`}
                     />
-                    <span className="text-sm font-bold text-slate-900">?�尺 (m)</span>
+                    <span className="text-sm font-bold text-slate-900">實尺 (m)</span>
                 </div>
 
                 <div className="h-6 w-px bg-slate-200 mx-2" />
@@ -404,7 +430,7 @@ const App: React.FC = () => {
                     className="text-xs flex items-center gap-1 text-slate-500 hover:text-slate-900 bg-white border border-slate-200 px-2 py-1 rounded cursor-pointer"
                 >
                     <X size={14} />
-                    ?��? / 完�?
+                    取消 / 完成
                 </button>
             </div>
         );
@@ -415,7 +441,7 @@ const App: React.FC = () => {
         return (
             <>
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">路�?寬度 (m)</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">路徑寬度 (m)</span>
                     <div className="flex items-center gap-2">
                         <input 
                             type="range" 
@@ -435,7 +461,7 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col gap-0.5 border-l pl-3 border-slate-200 ml-1">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">?�面?�質</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">鋪面材質</span>
                     <select 
                         value={currentPathMaterial}
                         onChange={(e) => {
@@ -457,7 +483,7 @@ const App: React.FC = () => {
                 
                 {/* Arrows, Line Style, Label Visibility */}
                  <div className="flex flex-col gap-0.5 border-l pl-3 border-slate-200 ml-1">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">?��?箭頭 / 線�?�??</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">啟用箭頭 / 線型</span>
                     <div className="flex items-center gap-1">
                         <button 
                             onClick={() => {
@@ -465,7 +491,7 @@ const App: React.FC = () => {
                                 updateSelectedShape({ arrowStart: !arrowStart });
                             }}
                             className={`p-1 rounded border transition-colors ${arrowStart ? 'bg-emerald-100 border-emerald-400 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}
-                            title="起�?箭頭"
+                            title="起點箭頭"
                         >
                             <MoveLeft size={16} />
                         </button>
@@ -475,7 +501,7 @@ const App: React.FC = () => {
                                 updateSelectedShape({ arrowEnd: !arrowEnd });
                             }}
                             className={`p-1 rounded border transition-colors ${arrowEnd ? 'bg-emerald-100 border-emerald-400 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}
-                            title="終�?箭頭"
+                            title="終點箭頭"
                         >
                             <MoveRight size={16} />
                         </button>
@@ -514,7 +540,7 @@ const App: React.FC = () => {
                                 updateSelectedShape({ showLabel: !showLabel });
                             }}
                             className={`p-1 rounded border transition-colors ${showLabel ? 'bg-emerald-100 border-emerald-400 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}
-                            title="顯示?��?"
+                            title="顯示標籤"
                         >
                             <Type size={16} />
                         </button>
@@ -522,7 +548,7 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col gap-0.5 border-l pl-3 border-slate-200 ml-1">
-                     <span className="text-[10px] text-slate-500 font-bold uppercase">標籤?�稱</span>
+                     <span className="text-[10px] text-slate-500 font-bold uppercase">標籤名稱</span>
                      <input 
                         type="text" 
                         value={labelInput}
@@ -542,7 +568,7 @@ const App: React.FC = () => {
     if (showBoundaryControls) {
         return (
             <div className="flex flex-col gap-0.5">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">?�地?�坪?�質</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase">基地坪面材質</span>
                 <select 
                     value={currentTerrain}
                     onChange={(e) => {
@@ -564,7 +590,7 @@ const App: React.FC = () => {
     if (showBubbleControls) {
         return (
             <div className="flex flex-col gap-0.5">
-                 <span className="text-[10px] text-slate-500 font-bold uppercase">空�?機能 / 植栽?��?</span>
+                 <span className="text-[10px] text-slate-500 font-bold uppercase">空間機能 / 植栽標記</span>
                  <input 
                     type="text" 
                     value={labelInput}
@@ -572,7 +598,7 @@ const App: React.FC = () => {
                         setLabelInput(e.target.value);
                         updateSelectedShape({ label: e.target.value });
                     }}
-                    placeholder="例�?: ?�坪?�, 休憩?�"
+                    placeholder="例如: 草坪區, 休憩區"
                     className={`${INPUT_STYLE} w-48`}
                  />
             </div>
@@ -581,7 +607,7 @@ const App: React.FC = () => {
     
     // Default: Selection mode prompt
     if (toolMode === ToolMode.SELECT && !selectedShapeId) {
-        return <span className="text-sm text-slate-400 italic font-medium">點�??��?上�??�件?��?編輯...</span>;
+        return <span className="text-sm text-slate-400 italic font-medium">點擊選取上方物件來編輯...</span>;
     }
 
     return null;
@@ -600,16 +626,16 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        {renderToolButton(ToolMode.SELECT, "?��?", <MousePointer2 size={20} />)}
-        {renderToolButton(ToolMode.BACKGROUND, "底�?設�?", <ImageIcon size={20} />)}
+        {renderToolButton(ToolMode.SELECT, "選取", <MousePointer2 size={20} />)}
+        {renderToolButton(ToolMode.BACKGROUND, "底圖設定", <ImageIcon size={20} />)}
         
         {/* Removed dedicated SCALE button from sidebar */}
         
         <div className="w-16 h-px bg-slate-200 my-1" />
         
-        {renderToolButton(ToolMode.BOUNDARY, "?�地範�?", <Layout size={20} />)}
-        {renderToolButton(ToolMode.PATH, "?��?/?�面", <Pencil size={20} />)}
-        {renderToolButton(ToolMode.BUBBLE, "空�?泡泡", <Activity size={20} />)}
+        {renderToolButton(ToolMode.BOUNDARY, "基地範圍", <Layout size={20} />)}
+        {renderToolButton(ToolMode.PATH, "路徑/鋪面", <Pencil size={20} />)}
+        {renderToolButton(ToolMode.BUBBLE, "空間泡泡", <Activity size={20} />)}
 
         <div className="mt-auto flex flex-col gap-3 w-full px-2">
             <div className="w-full h-px bg-slate-200" />
@@ -620,27 +646,27 @@ const App: React.FC = () => {
                 title="復原上一步"
             >
                 <Undo size={18} />
-                <span>復�?</span>
+                <span>復原</span>
             </button>
             
             {selectedShapeId && (
                 <button 
                     onClick={handleDeleteShape}
                     className={`${BUTTON_CLASS} bg-red-50 text-red-600 border-red-200 hover:bg-red-100 w-full`}
-                    title="?�除?��??�件"
+                    title="刪除選取物件"
                 >
                     <Trash2 size={18} />
-                    <span>?�除</span>
+                    <span>刪除</span>
                 </button>
             )}
 
             <button 
                 onClick={handleReset}
                 className={`${BUTTON_CLASS} bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 w-full`}
-                title="?�部?�置"
+                title="全部重置"
             >
                 <RotateCcw size={18} />
-                <span>?�置</span>
+                <span>重置</span>
             </button>
         </div>
       </aside>
@@ -652,7 +678,7 @@ const App: React.FC = () => {
         <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center gap-6 shadow-sm z-10 shrink-0">
              <div className="flex items-center gap-2 text-slate-400">
                  <Settings size={18} />
-                 <span className="text-xs font-bold uppercase tracking-wider">工具設�?</span>
+                 <span className="text-xs font-bold uppercase tracking-wider">工具設定</span>
              </div>
              <div className="h-8 w-px bg-slate-200" />
              
@@ -698,7 +724,7 @@ const App: React.FC = () => {
           <div className="p-5 border-b border-slate-100">
               <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                   <PlayCircle className="text-emerald-700" />
-                  AI ?��?設�?
+                  AI 渲染設定
               </h2>
           </div>
 
@@ -706,7 +732,7 @@ const App: React.FC = () => {
               
               {/* Style Selection */}
               <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">渲�?風格</label>
+                  <label className="text-sm font-bold text-slate-700">渲染風格</label>
                   <select 
                     value={selectedStyle}
                     onChange={(e) => setSelectedStyle(e.target.value as RenderStyle)}
@@ -720,7 +746,7 @@ const App: React.FC = () => {
 
               {/* Style Reference Image */}
               <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">風格?�考�? (?�填)</label>
+                  <label className="text-sm font-bold text-slate-700">風格參考圖 (選填)</label>
                   <input 
                       type="file" 
                       ref={styleInputRef}
@@ -746,18 +772,18 @@ const App: React.FC = () => {
                         onClick={(e) => { e.stopPropagation(); setRefStyleImage(null); if(styleInputRef.current) styleInputRef.current.value=""; }}
                         className="text-xs text-red-500 hover:underline font-medium"
                       >
-                          移除?�考�?
+                          移除參考圖
                       </button>
                   )}
               </div>
 
               {/* Custom Prompt */}
               <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">補�??�示�?(?�填)</label>
+                  <label className="text-sm font-bold text-slate-700">補充提示詞(選填)</label>
                   <textarea 
                       value={customPrompt}
                       onChange={(e) => setCustomPrompt(e.target.value)}
-                      placeholder="例�?：現�?��約風?��??��??�櫻?�樹..."
+                      placeholder="例如：現代簡約風、地中海、日式庭園、特色植栽..."
                       className={`${INPUT_STYLE} w-full p-2 h-24 resize-none`}
                   />
               </div>
@@ -778,12 +804,12 @@ const App: React.FC = () => {
                   {isGenerating ? (
                       <div className="flex items-center justify-center gap-2">
                           <Loader2 className="animate-spin" size={20} />
-                          <span>AI ?��?�?..</span>
+                          <span>AI 渲染中..</span>
                       </div>
                   ) : (
                       <div className="flex items-center justify-center gap-2">
                           <Activity size={20} />
-                          <span>?��??��?</span>
+                          <span>開始渲染</span>
                       </div>
                   )}
               </button>
@@ -792,7 +818,7 @@ const App: React.FC = () => {
           {/* Result Area (Mini Preview) */}
           {generatedImage && (
              <div className="p-5 border-t border-slate-100 bg-slate-50">
-                 <h3 className="text-sm font-bold mb-3 text-slate-700">?��?結�?</h3>
+                 <h3 className="text-sm font-bold mb-3 text-slate-700">渲染結果</h3>
                  <div className="relative rounded-lg overflow-hidden shadow-sm border border-slate-200 group">
                      <img src={generatedImage} alt="Result" className="w-full h-auto" />
                      <a 
@@ -803,7 +829,7 @@ const App: React.FC = () => {
                          <Download className="text-white" size={32} />
                      </a>
                  </div>
-                 <p className="text-xs text-center text-slate-400 mt-2 font-medium">點�??��?下�?大�?</p>
+                 <p className="text-xs text-center text-slate-400 mt-2 font-medium">點擊圖片下載大圖</p>
              </div>
           )}
       </aside>

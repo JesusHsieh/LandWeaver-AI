@@ -32,6 +32,14 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/nlsc-wms/, '/wms'),
           secure: true,
+          configure: (proxy) => {
+            proxy.on('proxyRes', (proxyRes, req) => {
+              // 只快取 GetMap tile 回應（分區色塊圖磚），避免快取 GetCapabilities
+              if (req.url?.includes('REQUEST=GetMap') || req.url?.includes('REQUEST=getmap')) {
+                proxyRes.headers['cache-control'] = 'public, max-age=3600'; // 1 小時快取
+              }
+            });
+          },
         },
         // NLSC REST API（行政區 / 地籍查詢）
         '/nlsc-api': {

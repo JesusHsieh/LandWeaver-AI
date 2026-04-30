@@ -102,7 +102,8 @@ LandWeaver-AI/
 │       ├── App.tsx                        # 狀態管理、API 協調
 │       ├── types.ts                       # 型別定義 + INITIAL_SETTINGS
 │       ├── services/
-│       │   ├── gisService.ts             # 7 個真實 API + 景觀決策引擎
+│       │   ├── gisService.ts             # 10+ 真實 API + 景觀決策引擎 + 並行預取快取
+│       │   ├── strategyService.ts        # Gemini AI 景觀策略生成（診斷 / 結論 / 建議）
 │       │   ├── tdxService.ts             # TDX 交通資料（捷運/高鐵/台鐵）
 │       │   └── exportService.ts          # PDF / MD / TXT 報告匯出
 │       ├── components/
@@ -112,7 +113,7 @@ LandWeaver-AI/
 │       │   └── TransportCesiumLayer.tsx  # 交通動態圖層（捷運/高鐵動畫）
 │       └── data/
 │           └── transportData.ts          # 台灣六大捷運 + 高鐵 + 台鐵路線資料
-├── vite.config.ts                        # MPA 多頁入口 + 10 路 API Proxy
+├── vite.config.ts                        # MPA 多頁入口 + 12 路 API Proxy（含 WMS 快取）
 └── .env.example
 ```
 
@@ -131,9 +132,17 @@ LandWeaver-AI/
 | 高程、坡度、坡向、排水係數 | **Open-Elevation** | 不需要 | DEM 5 點取樣，計算坡度梯度與平面曲率 |
 | 縣市鄉鎮行政區 | 國土測繪中心 NLSC | 不需要 | TownVillagePointQuery REST API |
 | 都市計畫分區 | 國土測繪中心 WMS | 不需要 | GetMap 3×3px 像素取樣 → RGB 比對 LUIMAP 色碼 |
+| 容積率 / 建蔽率法規 | NLSC WFS | 不需要 | 依都市計畫分區代碼對照台灣建築法規查表 |
+| 地質敏感 / 液化潛勢 / 活動斷層 | 地質調查及礦業管理中心 CGS WMS | 不需要 | 08B / 08D 疊圖 |
+| 土石流潛勢溪流 | 水土保持局 SWCB WMS | 不需要 | 08C 疊圖 |
+| 淹水潛勢 | 水利署 WRA WMS | 不需要 | 08E 疊圖（2/10/100 年重現期） |
+| 山坡地 / 地質敏感區範圍 | 水土保持局 SWCB WMS | 不需要 | 08F 疊圖 |
+| 飲用水保護區 | 環境部 MOENV WMS | 不需要 | 08G 疊圖 |
+| 文化資產保護範圍 | 國家災害防救科技中心 NCDR WMS | 不需要 | 08H 疊圖 |
 | 捷運 / 高鐵 / 台鐵路線 | 內建靜態資料 | 不需要 | 六大捷運系統 + 高鐵 + 台鐵路線幾何 |
 | 捷運列車動態 | TDX 交通部 | 需要 | LiveBoard 即時班次，無 Key 則停用 |
 | 太陽方位角 / 高度角 | 天文公式 | 不需要 | 即時計算，無需外部 API |
+| AI 場址診斷 + 景觀策略 | **Google Gemini** (`gemini-2.0-flash`) | 需要 | 以真實場址數據生成三段式分析報告 |
 
 ### 景觀決策引擎說明
 
@@ -221,6 +230,34 @@ LandWeaver-AI/
 - **月份輻射長條圖**：梯度色彩 + hover tooltip + 最低 8% 可見高度
 - **交通流動圖層**：台北/高雄/桃園/台中捷運 + 高鐵 + 台鐵路線與動態列車
 - **節氣標籤動態化**：底部依當前月份顯示春分/夏至/秋分/冬至
+
+### v5.0 — AI 景觀策略 + 多危害圖層 + 效能優化
+- **Gemini AI 景觀策略面板**：點選基地後開啟「景觀策略」開關，自動呼叫 `gemini-2.0-flash`，以場址真實數據（分區法規、微氣候、水文、空品）生成三段式診斷報告：場址診斷 × 3 / 綜合結論 / 行動建議 × 4
+- **API Key 整合修正**：策略面板改由 `ApiKeyManager` 共用 `IMAGE_GEN_KEY`（localStorage），與其他模組 Key 管理一致，無需重複設定
+- **重試機制**：策略生成失敗後「重新生成」按鈕可正確觸發新一輪呼叫（useEffect trigger counter）
+- **多危害疊圖 08A–08I**（新增 8 個 WMS 代理）：
+  | 代碼 | 圖層 | 來源 |
+  |------|------|------|
+  | 08A | 都市計畫分區色塊 | 國土測繪中心 NLSC WMS |
+  | 08B | 地質敏感區（液化潛勢） | 地質調查及礦業管理中心 CGS WMS |
+  | 08C | 土石流潛勢溪流 | 水土保持局 SWCB WMS |
+  | 08D | 活動斷層緩衝區 | 地質調查及礦業管理中心 CGS WMS |
+  | 08E | 淹水潛勢（2年/10年/100年重現） | 水利署 WRA WMS |
+  | 08F | 山坡地 / 地質敏感區範圍 | 水土保持局 SWCB WMS |
+  | 08G | 飲用水保護區 | 環境部 MOENV WMS |
+  | 08H | 文化資產保護範圍 | 國家災害防救科技中心 NCDR WMS |
+  | 08I | 都市計畫範圍線 | 國土測繪中心 NLSC WMS |
+- **效能優化**：
+  - 都市計畫分區與行政區改為**並行預取**（`Promise.allSettled`），點選後快取命中，消除串接等待
+  - 08A WMS tile 尺寸 256px → **512px**，同一視野 HTTP 請求數減少 75%
+  - Vite proxy 新增 `Cache-Control: public, max-age=3600`，WMS 圖磚瀏覽器快取 1 小時
+  - 策略呼叫新增 `useRef` fetch guard，防止 React Strict Mode 雙重觸發造成 API 配額浪費
+- **Bug 修復**：
+  - 修正 `strategyError` 被 `cancelled` guard 攔截導致錯誤訊息永遠空白
+  - 修正平行化重構後 `townResult` / `zoneResult` 變數殘留引用，造成 `ReferenceError` 使 `landscapeData` 始終為 `null`（右側面板「都市計畫分區」與「地段」消失）
+  - 修正 `MapControl` 太陽路徑弧線與方位角投影線共用同一 Cesium `Entity`，第二條 `PolylineGraphics` 靜默覆蓋第一條，導致太陽弧線完全不顯示
+  - 修正策略 fetch Race Condition：快速切換基地時，前一個基地的 Gemini 回應會在 state reset 後才 resolve，以舊結果污染新基地的診斷內容；加入 generation counter ref 確保過時的 resolve 被丟棄
+  - 新增 Module 05 ⚙ 設定面板的 **Gemini API Key 輸入欄**：原本設定面板只有 CWA / EPA / TDX 等 Key，使用者若未使用其他模組則無法在 Module 05 內設定 AI 診斷所需的 Gemini Key
 
 ---
 
