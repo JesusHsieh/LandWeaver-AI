@@ -127,6 +127,7 @@ export default defineConfig(({ mode }) => {
           project03: path.resolve(__dirname, 'src/03-space-photo-composite/index.html'),
           project04: path.resolve(__dirname, 'src/04-3d-layout-simulation/index.html'),
           project05: path.resolve(__dirname, 'src/05-landscape-geo-analysis/index.html'),
+          project06: path.resolve(__dirname, 'src/06-taipei-greenery-calc/index.html'),
         },
       },
     },
