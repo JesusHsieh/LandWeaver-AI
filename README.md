@@ -98,21 +98,30 @@ LandWeaver-AI/
 │   ├── 02-landscape-concept-ai/          # Module 02
 │   ├── 03-space-photo-composite/         # Module 03
 │   ├── 04-3d-layout-simulation/          # Module 04
-│   └── 05-landscape-geo-analysis/        # Module 05
-│       ├── App.tsx                        # 狀態管理、API 協調
-│       ├── types.ts                       # 型別定義 + INITIAL_SETTINGS
-│       ├── services/
-│       │   ├── gisService.ts             # 10+ 真實 API + 景觀決策引擎 + 並行預取快取
-│       │   ├── strategyService.ts        # Gemini AI 景觀策略生成（診斷 / 結論 / 建議）
-│       │   ├── tdxService.ts             # TDX 交通資料（捷運/高鐵/台鐵）
-│       │   └── exportService.ts          # PDF / MD / TXT 報告匯出
-│       ├── components/
-│       │   ├── MapControl.tsx            # CesiumJS 3D 地球儀 + WMS 圖層
-│       │   ├── Sidebar.tsx               # 圖層控制 + 分析工具切換
-│       │   ├── RightPanel.tsx            # 即時數據面板 + AI 決策輸出
-│       │   └── TransportCesiumLayer.tsx  # 交通動態圖層（捷運/高鐵動畫）
-│       └── data/
-│           └── transportData.ts          # 台灣六大捷運 + 高鐵 + 台鐵路線資料
+│   ├── 05-landscape-geo-analysis/        # Module 05
+│   │   ├── App.tsx                        # 狀態管理、API 協調
+│   │   ├── types.ts                       # 型別定義 + INITIAL_SETTINGS
+│   │   ├── services/
+│   │   │   ├── gisService.ts             # 10+ 真實 API + 景觀決策引擎 + 並行預取快取
+│   │   │   ├── strategyService.ts        # Gemini AI 景觀策略生成（診斷 / 結論 / 建議）
+│   │   │   ├── tdxService.ts             # TDX 交通資料（捷運/高鐵/台鐵）
+│   │   │   └── exportService.ts          # PDF / MD / TXT 報告匯出
+│   │   ├── components/
+│   │   │   ├── MapControl.tsx            # CesiumJS 3D 地球儀 + WMS 圖層
+│   │   │   ├── Sidebar.tsx               # 圖層控制 + 分析工具切換
+│   │   │   ├── RightPanel.tsx            # 即時數據面板 + AI 決策輸出
+│   │   │   └── TransportCesiumLayer.tsx  # 交通動態圖層（捷運/高鐵動畫）
+│   │   └── data/
+│   │       └── transportData.ts          # 台灣六大捷運 + 高鐵 + 台鐵路線資料
+│   └── 06-taipei-greenery-calc/          # Module 06
+│       ├── App.tsx                        # 主介面、城市切換（台北市 / 新北市）
+│       ├── hooks/
+│       │   ├── useGreeneryCalc.ts        # 台北市綠化計算邏輯（第5、7、8、9、12條）
+│       │   └── useNewTaipeiCalc.ts       # 新北市綠化計算邏輯
+│       ├── sections/                      # 各法條輸入與輸出區塊
+│       └── components/                   # 共用 UI 元件
+├── api/proxy/[...path].ts                # Vercel Edge Function — 12 路 API CORS Proxy
+├── vercel.json                           # Vercel 部署設定（build + rewrites）
 ├── vite.config.ts                        # MPA 多頁入口 + 12 路 API Proxy（含 WMS 快取）
 └── .env.example
 ```
@@ -258,6 +267,12 @@ LandWeaver-AI/
   - 修正 `MapControl` 太陽路徑弧線與方位角投影線共用同一 Cesium `Entity`，第二條 `PolylineGraphics` 靜默覆蓋第一條，導致太陽弧線完全不顯示
   - 修正策略 fetch Race Condition：快速切換基地時，前一個基地的 Gemini 回應會在 state reset 後才 resolve，以舊結果污染新基地的診斷內容；加入 generation counter ref 確保過時的 resolve 被丟棄
   - 新增 Module 05 ⚙ 設定面板的 **Gemini API Key 輸入欄**：原本設定面板只有 CWA / EPA / TDX 等 Key，使用者若未使用其他模組則無法在 Module 05 內設定 AI 診斷所需的 Gemini Key
+
+### v6.0 — Module 06 整合 + 公開上線
+- **Module 06 — 綠化法規計算機**：整合 `taipei-greenery-calc` 專案，支援台北市 / 新北市綠化自治法規計算（第 5、7、8、9、12 條），含即時試算、喬木棵數計算與查核清單
+- **Vercel 公開部署**：新增 `api/proxy/[...path].ts` Vercel Edge Function，取代開發環境 Vite Proxy，解決 12 個台灣政府 API 的 CORS 問題；`vercel.json` 設定 build + rewrites
+- **首頁架構調整**：新增 PHASE 03 · REGULATION & COMPLIANCE 區塊；Footer 更新為 © 2026 LandWeaver AI · Built by C.L Hsieh
+- **GitHub 公開**：Repo 設為 Public，加入 Topics 標籤（react / typescript / ai / cesium / gemini / taiwan）
 
 ---
 
