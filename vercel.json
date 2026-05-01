@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/nlsc-wfs/:path*",      "destination": "/api/proxy/nlsc-wfs/:path*" },
+    { "source": "/nlsc-wfs",             "destination": "/api/proxy/nlsc-wfs" },
+    { "source": "/nlsc-wmts/:path*",     "destination": "/api/proxy/nlsc-wmts/:path*" },
+    { "source": "/nlsc-wmts",            "destination": "/api/proxy/nlsc-wmts" },
+    { "source": "/nlsc-wms/:path*",      "destination": "/api/proxy/nlsc-wms/:path*" },
+    { "source": "/nlsc-wms",             "destination": "/api/proxy/nlsc-wms" },
+    { "source": "/nlsc-api/:path*",      "destination": "/api/proxy/nlsc-api/:path*" },
+    { "source": "/nlsc-api",             "destination": "/api/proxy/nlsc-api" },
+    { "source": "/cgs-wms/:path*",       "destination": "/api/proxy/cgs-wms/:path*" },
+    { "source": "/cgs-wms",              "destination": "/api/proxy/cgs-wms" },
+    { "source": "/swcb-wms/:path*",      "destination": "/api/proxy/swcb-wms/:path*" },
+    { "source": "/swcb-wms",             "destination": "/api/proxy/swcb-wms" },
+    { "source": "/wra-wms/:path*",       "destination": "/api/proxy/wra-wms/:path*" },
+    { "source": "/wra-wms",              "destination": "/api/proxy/wra-wms" },
+    { "source": "/soil-wms/:path*",      "destination": "/api/proxy/soil-wms/:path*" },
+    { "source": "/soil-wms",             "destination": "/api/proxy/soil-wms" },
+    { "source": "/moenv-wms/:path*",     "destination": "/api/proxy/moenv-wms/:path*" },
+    { "source": "/moenv-wms",            "destination": "/api/proxy/moenv-wms" },
+    { "source": "/ncdr-wms/:path*",      "destination": "/api/proxy/ncdr-wms/:path*" },
+    { "source": "/ncdr-wms",             "destination": "/api/proxy/ncdr-wms" },
+    { "source": "/pvgis/:path*",         "destination": "/api/proxy/pvgis/:path*" },
+    { "source": "/pvgis",                "destination": "/api/proxy/pvgis" },
+    { "source": "/open-elevation/:path*","destination": "/api/proxy/open-elevation/:path*" },
+    { "source": "/open-elevation",       "destination": "/api/proxy/open-elevation" }
+  ]
+}
