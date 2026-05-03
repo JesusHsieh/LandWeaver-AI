@@ -4,6 +4,8 @@
 
 整合 5 個景觀設計 AI 工具，從平面配置、概念圖生成、空間照片合成、3D 模擬，到 GIS 地理分析與植栽決策，由 Gemini AI 驅動。
 
+🔗 **Live Demo：[land-weaver-ai.vercel.app](https://land-weaver-ai.vercel.app)**
+
 ---
 
 ## 🗂 工具模組
