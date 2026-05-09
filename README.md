@@ -10,20 +10,14 @@
 
 ## 🗂 工具模組
 
-### Phase 1 · 基地分析 Site Analysis
-
-| # | 工具名稱 | 說明 |
-|---|---------|------|
-| 01 | **景觀地理分析 AI** | 整合 3D 地球儀、日照模擬、微氣候分析與景觀決策引擎，點選基地即時獲取真實氣象、空品、高程、都市計畫分區與植栽建議 |
-
-### Phase 2 · 概念發展 Concept Development
-
-| # | 工具名稱 | 說明 |
-|---|---------|------|
-| 01 | **景觀配置概念圖 AI** | 繪製基地邊界、路徑與機能泡泡，AI 渲染成 20+ 種風格的景觀配置圖 |
-| 02 | **景觀建築平面魔法師** | 上傳基地平面圖，AI 渲染景觀配置、生成多角度場景並輸出專業簡報 |
-| 03 | **空間與照片 AI 合成** | 上傳現場照片，在 2D 平面圖上配置景觀元素，AI 精準合成至真實場景 |
-| 04 | **平面配置圖 AI 3D 模擬** | 上傳平面圖，標記視點與方向，AI 生成 3D 透視模擬效果圖 |
+| # | 階段 | 工具名稱 | 說明 |
+|---|------|---------|------|
+| 01 | Phase 1 · 概念發展 | **景觀配置概念圖 AI** | 繪製基地邊界、路徑與機能泡泡，AI 渲染成 20+ 種風格的景觀配置圖 |
+| 02 | Phase 1 · 概念發展 | **景觀建築平面魔法師** | 上傳基地平面圖，AI 渲染景觀配置、生成多角度場景並輸出專業簡報 |
+| 03 | Phase 1 · 概念發展 | **空間與照片 AI 合成** | 上傳現場照片，在 2D 平面圖上配置景觀元素，AI 精準合成至真實場景 |
+| 04 | Phase 1 · 概念發展 | **平面配置圖 AI 3D 模擬** | 上傳平面圖，標記視點與方向，AI 生成 3D 透視模擬效果圖 |
+| 05 | Phase 2 · 基地分析 | **景觀地理分析 AI** | 整合 3D 地球儀、日照模擬、微氣候分析與景觀決策引擎，點選基地即時獲取真實氣象、空品、高程、都市計畫分區與植栽建議 |
+| 06 | Phase 3 · 法規計算 | **綠化法規計算機** | 支援台北市 / 新北市綠化自治法規計算（第 5、7、8、9、12 條），含即時試算、喬木棵數計算與查核清單 |
 
 ---
 
@@ -96,11 +90,11 @@ LandWeaver-AI/
 │   ├── app-shell/
 │   │   ├── navbar/LandWeaverHeader.tsx   # 共用頂部導覽列
 │   │   └── layout/AppLayout.tsx          # 共用頁面框架
-│   ├── 01-landscape-magic-planner/       # Module 01
-│   ├── 02-landscape-concept-ai/          # Module 02
-│   ├── 03-space-photo-composite/         # Module 03
-│   ├── 04-3d-layout-simulation/          # Module 04
-│   ├── 05-landscape-geo-analysis/        # Module 05
+│   ├── 01-landscape-concept-ai/          # Module 01 · 景觀配置概念圖 AI
+│   ├── 02-landscape-magic-planner/       # Module 02 · 景觀建築平面魔法師
+│   ├── 03-space-photo-composite/         # Module 03 · 空間與照片 AI 合成
+│   ├── 04-3d-layout-simulation/          # Module 04 · 平面配置圖 AI 3D 模擬
+│   ├── 05-landscape-geo-analysis/        # Module 05 · 景觀地理分析 AI
 │   │   ├── App.tsx                        # 狀態管理、API 協調
 │   │   ├── types.ts                       # 型別定義 + INITIAL_SETTINGS
 │   │   ├── services/
@@ -115,7 +109,7 @@ LandWeaver-AI/
 │   │   │   └── TransportCesiumLayer.tsx  # 交通動態圖層（捷運/高鐵動畫）
 │   │   └── data/
 │   │       └── transportData.ts          # 台灣六大捷運 + 高鐵 + 台鐵路線資料
-│   └── 06-taipei-greenery-calc/          # Module 06
+│   └── 06-taipei-greenery-calc/          # Module 06 · 綠化法規計算機
 │       ├── App.tsx                        # 主介面、城市切換（台北市 / 新北市）
 │       ├── hooks/
 │       │   ├── useGreeneryCalc.ts        # 台北市綠化計算邏輯（第5、7、8、9、12條）
