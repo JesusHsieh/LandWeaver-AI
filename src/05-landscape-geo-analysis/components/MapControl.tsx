@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
-import { Viewer, CameraFlyTo, Entity, PointGraphics, Cesium3DTileset, ImageryLayer, PolylineGraphics, LabelGraphics, ScreenSpaceEventHandler, ScreenSpaceEvent, BillboardGraphics } from 'resium';
+import { Viewer, CameraFlyTo, Entity, PointGraphics, Cesium3DTileset, ImageryLayer, PolylineGraphics, LabelGraphics, ScreenSpaceEventHandler, ScreenSpaceEvent, BillboardGraphics, EllipseGraphics } from 'resium';
 import { Cartesian2, Cartesian3, Color, JulianDate, ShadowMode, createWorldTerrainAsync, IonResource, OpenStreetMapImageryProvider, UrlTemplateImageryProvider, WebMapTileServiceImageryProvider, WebMapServiceImageryProvider, Matrix4, Cartographic, sampleTerrainMostDetailed, EllipsoidTerrainProvider, ScreenSpaceEventType, VerticalOrigin, LabelStyle, HorizontalOrigin, Cesium3DTileStyle } from 'cesium';
 import { MapSettings, LandscapeDesignData } from '../types';
 import { GISService } from '../services/gisService';
@@ -11,11 +11,338 @@ interface MapControlProps {
   landscapeData: LandscapeDesignData | null;
 }
 
+// Haversine distance in metres
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function fmtDist(m: number): string {
+  return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
+}
+
+// TWD97 TM2 Zone 121 (EPSG:3826) → WGS84 using standard TM inverse projection (USGS algorithm)
+function twd97ToWgs84(E: number, N: number): { lat: number; lng: number } {
+  const a   = 6378137.0;
+  const f   = 1.0 / 298.257222101;
+  const k0  = 0.9999;
+  const E0  = 250000.0;
+  const lon0 = 121.0 * Math.PI / 180.0;
+  const b   = a * (1 - f);
+  const e2  = (a * a - b * b) / (a * a);
+  const ep2 = (a * a - b * b) / (b * b);
+  const e1  = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+  const M   = N / k0;
+  const mu  = M / (a * (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256));
+  const phi1 = mu
+    + (3/2*e1 - 27/32*e1**3)     * Math.sin(2*mu)
+    + (21/16*e1**2 - 55/32*e1**4) * Math.sin(4*mu)
+    + (151/96*e1**3)               * Math.sin(6*mu)
+    + (1097/512*e1**4)             * Math.sin(8*mu);
+  const sinP = Math.sin(phi1), cosP = Math.cos(phi1), tanP = Math.tan(phi1);
+  const N1 = a / Math.sqrt(1 - e2*sinP*sinP);
+  const R1 = a*(1-e2) / Math.pow(1 - e2*sinP*sinP, 1.5);
+  const T1 = tanP*tanP, C1 = ep2*cosP*cosP;
+  const D  = (E - E0) / (N1 * k0);
+  const lat = phi1 - N1*tanP/R1 * (
+    D*D/2
+    - (5 + 3*T1 + 10*C1 - 4*C1*C1 - 9*ep2)               * D**4/24
+    + (61 + 90*T1 + 298*C1 + 45*T1*T1 - 252*ep2 - 3*C1*C1) * D**6/720
+  );
+  const lon = lon0 + (
+    D
+    - (1 + 2*T1 + C1)                                               * D**3/6
+    + (5 - 2*C1 + 28*T1 - 3*C1*C1 + 8*ep2 + 24*T1*T1) * D**5/120
+  ) / cosP;
+  return { lat: lat * 180 / Math.PI, lng: lon * 180 / Math.PI };
+}
+
+function isInTaipeiCity(lat: number, lng: number): boolean {
+  return lat >= 24.97 && lat <= 25.21 && lng >= 121.46 && lng <= 121.66;
+}
+
+// Simple SVG elevation profile
+function ElevProfilePanel({ data, onClose }: { data: { d: number; e: number }[]; onClose: () => void }) {
+  if (!data.length) return null;
+  const minE = Math.min(...data.map(p => p.e));
+  const maxE = Math.max(...data.map(p => p.e));
+  const totalD = data[data.length - 1].d;
+  const W = 220; const H = 80; const PAD = 16;
+  const iW = W - PAD * 2; const iH = H - PAD * 2;
+  const scaleX = (d: number) => PAD + (d / totalD) * iW;
+  const scaleY = (e: number) => PAD + iH - ((e - minE) / Math.max(maxE - minE, 1)) * iH;
+  const pts = data.map(p => `${scaleX(p.d).toFixed(1)},${scaleY(p.e).toFixed(1)}`).join(' ');
+  const area = `M${scaleX(0)},${scaleY(data[0].e)} ` +
+    data.map(p => `L${scaleX(p.d).toFixed(1)},${scaleY(p.e).toFixed(1)}`).join(' ') +
+    ` L${scaleX(totalD)},${H - PAD} L${scaleX(0)},${H - PAD} Z`;
+  return (
+    <div style={{
+      position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)',
+      background: 'rgba(14,14,14,0.92)', border: '1px solid rgba(139,195,74,0.35)',
+      borderRadius: 6, padding: '8px 10px', zIndex: 40, pointerEvents: 'auto',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 9, color: '#8BC34A', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          高程剖面 · {fmtDist(totalD)}
+        </span>
+        <button onClick={onClose} style={{ fontSize: 10, color: '#555', background: 'none', border: 'none', cursor: 'pointer', paddingLeft: 8 }}>✕</button>
+      </div>
+      <svg width={W} height={H}>
+        <path d={area} fill="rgba(139,195,74,0.15)" />
+        <polyline points={pts} fill="none" stroke="#8BC34A" strokeWidth={1.5} />
+        {data.map((p, i) => (
+          <circle key={i} cx={scaleX(p.d)} cy={scaleY(p.e)} r={2} fill="#8BC34A" />
+        ))}
+        <text x={PAD} y={PAD - 4} fontSize={8} fill="#666">{maxE.toFixed(0)} m</text>
+        <text x={PAD} y={H - 4} fontSize={8} fill="#666">{minE.toFixed(0)} m</text>
+      </svg>
+    </div>
+  );
+}
+
 export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClick, landscapeData }) => {
   const viewerRef        = useRef<any>(null);
   const osmTilesetRef    = useRef<any>(null);
   // A hidden WorldTerrain provider kept only for height-sampling — never assigned to viewer
   const terrainSamplerRef = useRef<any>(null);
+
+  // ── Measure tool state ──────────────────────────────────────────────────────
+  const [measurePts, setMeasurePts] = useState<{ lat: number; lng: number }[]>([]);
+
+  // ── Elevation profile state ─────────────────────────────────────────────────
+  const [elevPts, setElevPts] = useState<{ lat: number; lng: number }[]>([]);
+  const [elevData, setElevData] = useState<{ d: number; e: number }[]>([]);
+  const [elevLoading, setElevLoading] = useState(false);
+
+  // ── OSM overlay state ───────────────────────────────────────────────────────
+  const [ndviFeatures, setNdviFeatures] = useState<{ lat: number; lng: number }[]>([]);
+  const [buildingGrid, setBuildingGrid] = useState<{ lat: number; lng: number; count: number }[]>([]);
+
+  // ── Street tree state ───────────────────────────────────────────────────────
+  type TreeFeature = { lat: number; lng: number; species: string; src: 'tpe' | 'osm' };
+  const [treeFeatures, setTreeFeatures] = useState<TreeFeature[]>([]);
+  const tpeCacheRef = useRef<TreeFeature[] | null>(null);
+
+  // ── Road layer state ─────────────────────────────────────────────────────────
+  type RoadKind = 'trunk' | 'primary' | 'secondary' | 'tertiary' | 'residential';
+  type RoadFeature = { pts: { lat: number; lng: number }[]; kind: RoadKind; name: string };
+  const [roadFeatures, setRoadFeatures] = useState<RoadFeature[]>([]);
+
+  // ── POI layer state ──────────────────────────────────────────────────────────
+  type PoiCat = 'school' | 'park' | 'market' | 'medical' | 'bus' | 'public';
+  type PoiFeature = { lat: number; lng: number; cat: PoiCat; name: string };
+  const [poiFeatures, setPoiFeatures] = useState<PoiFeature[]>([]);
+  type PoiStats = Record<PoiCat, number>;
+  const [poiStats, setPoiStats] = useState<PoiStats | null>(null);
+
+  // Reset measure/profile when mode is toggled off
+  useEffect(() => {
+    if (!settings.showMeasureTool) { setMeasurePts([]); }
+  }, [settings.showMeasureTool]);
+  useEffect(() => {
+    if (!settings.showElevProfile) { setElevPts([]); setElevData([]); }
+  }, [settings.showElevProfile]);
+
+  // Fetch NDVI (parks + forests + gardens) from Overpass
+  useEffect(() => {
+    if (!settings.showNdviLayer || !settings.analysisPoint) { setNdviFeatures([]); return; }
+    const { lat, lng } = settings.analysisPoint;
+    const r = 0.008; // ~900m
+    const bbox = `${lat - r},${lng - r},${lat + r},${lng + r}`;
+    const q = `[out:json][timeout:12];(node["leisure"~"^(park|garden)$"](${bbox});node["natural"~"^(wood|tree|scrub)$"](${bbox});node["landuse"~"^(forest|grass|meadow|orchard|vineyard)$"](${bbox});way["leisure"="park"](${bbox});way["landuse"~"^(forest|grass)$"](${bbox}););out center 250;`;
+    fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q) })
+      .then(r => r.json())
+      .then(data => {
+        const pts = (data.elements ?? []).map((el: any) => ({
+          lat: el.lat ?? el.center?.lat,
+          lng: el.lon ?? el.center?.lon,
+        })).filter((f: any) => f.lat && f.lng).slice(0, 250);
+        setNdviFeatures(pts);
+      })
+      .catch(() => {});
+  }, [settings.showNdviLayer, settings.analysisPoint]);
+
+  // Fetch buildings from Overpass → compute 5×5 density grid
+  useEffect(() => {
+    if (!settings.showBuildingDensity || !settings.analysisPoint) { setBuildingGrid([]); return; }
+    const { lat, lng } = settings.analysisPoint;
+    const r = 0.007;
+    const bbox = `${lat - r},${lng - r},${lat + r},${lng + r}`;
+    const q = `[out:json][timeout:12];(way["building"](${bbox});node["building"](${bbox}););out center 400;`;
+    fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q) })
+      .then(res => res.json())
+      .then(data => {
+        const pts = (data.elements ?? []).map((el: any) => ({
+          lat: el.lat ?? el.center?.lat,
+          lng: el.lon ?? el.center?.lon,
+        })).filter((f: any) => f.lat && f.lng);
+        // 5×5 grid
+        const CELLS = 5;
+        const cellSize = (r * 2) / CELLS;
+        const grid: { lat: number; lng: number; count: number }[] = [];
+        for (let row = 0; row < CELLS; row++) {
+          for (let col = 0; col < CELLS; col++) {
+            const cLat = (lat - r) + (row + 0.5) * cellSize;
+            const cLng = (lng - r) + (col + 0.5) * cellSize;
+            const count = pts.filter((p: any) =>
+              Math.abs(p.lat - cLat) < cellSize / 2 &&
+              Math.abs(p.lng - cLng) < cellSize / 2
+            ).length;
+            if (count > 0) grid.push({ lat: cLat, lng: cLng, count });
+          }
+        }
+        setBuildingGrid(grid);
+      })
+      .catch(() => {});
+  }, [settings.showBuildingDensity, settings.analysisPoint]);
+
+  // Street tree data fetch — Taipei official blob first, OSM fallback elsewhere
+  useEffect(() => {
+    if (!settings.showStreetTreeLayer) { setTreeFeatures([]); return; }
+    if (!settings.analysisPoint) { setTreeFeatures([]); return; }
+    const { lat, lng } = settings.analysisPoint;
+    let cancelled = false;
+
+    const loadOsm = () => {
+      const r = 0.006;
+      const bbox = `${lat - r},${lng - r},${lat + r},${lng + r}`;
+      const q = `[out:json][timeout:15];(node["natural"="tree"](${bbox});node["natural"="tree_row"](${bbox});node["street_tree"="yes"](${bbox});way["natural"="tree_row"](${bbox}););out center 400;`;
+      fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q) })
+        .then(res => res.json())
+        .then(data => {
+          if (cancelled) return;
+          const trees: TreeFeature[] = (data.elements ?? []).map((el: any) => ({
+            lat: (el.lat ?? el.center?.lat) as number,
+            lng: (el.lon ?? el.center?.lon) as number,
+            species: el.tags?.['species:zh'] ?? el.tags?.species ?? el.tags?.name ?? '樹木',
+            src: 'osm' as const,
+          })).filter((f: TreeFeature) => f.lat && f.lng).slice(0, 400);
+          setTreeFeatures(trees);
+        })
+        .catch(() => {});
+    };
+
+    if (isInTaipeiCity(lat, lng)) {
+      if (tpeCacheRef.current) {
+        const nearby = tpeCacheRef.current
+          .filter(t => haversineM(lat, lng, t.lat, t.lng) < 800)
+          .sort((a, b) => haversineM(lat, lng, a.lat, a.lng) - haversineM(lat, lng, b.lat, b.lng))
+          .slice(0, 1200);
+        setTreeFeatures(nearby);
+        return () => { cancelled = true; };
+      }
+      const ctrl = new AbortController();
+      fetch('/tpe-tree/TaipeiTree.json', { signal: ctrl.signal })
+        .then(res => res.json())
+        .then((data: any[]) => {
+          if (cancelled) return;
+          const all: TreeFeature[] = data
+            .map((item: any) => {
+              const { lat: tLat, lng: tLng } = twd97ToWgs84(Number(item.TWD97X), Number(item.TWD97Y));
+              return { lat: tLat, lng: tLng, species: item.TreeType ?? '行道樹', src: 'tpe' as const };
+            })
+            .filter((f: TreeFeature) => f.lat > 24 && f.lat < 26 && f.lng > 120 && f.lng < 122.5);
+          tpeCacheRef.current = all;
+          const nearby = all
+            .filter(t => haversineM(lat, lng, t.lat, t.lng) < 800)
+            .sort((a, b) => haversineM(lat, lng, a.lat, a.lng) - haversineM(lat, lng, b.lat, b.lng))
+            .slice(0, 1200);
+          setTreeFeatures(nearby);
+        })
+        .catch(() => { if (!cancelled) loadOsm(); });
+      return () => { cancelled = true; ctrl.abort(); };
+    } else {
+      loadOsm();
+      return () => { cancelled = true; };
+    }
+  }, [settings.showStreetTreeLayer, settings.analysisPoint]);
+
+  // Road classification + stress labels
+  useEffect(() => {
+    if (!settings.showRoadLayer || !settings.analysisPoint) { setRoadFeatures([]); return; }
+    const { lat, lng } = settings.analysisPoint;
+    let cancelled = false;
+    const r = 0.007;
+    const bbox = `${lat - r},${lng - r},${lat + r},${lng + r}`;
+    const q = `[out:json][timeout:15];(way["highway"~"^(trunk|primary|secondary|tertiary|residential|unclassified)$"](${bbox}););out geom 300;`;
+    fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q) })
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        const kindMap: Record<string, RoadKind> = {
+          trunk: 'trunk', primary: 'primary', secondary: 'secondary',
+          tertiary: 'tertiary', residential: 'residential', unclassified: 'residential',
+        };
+        const roads: RoadFeature[] = (data.elements ?? [])
+          .filter((el: any) => el.type === 'way' && el.geometry?.length >= 2)
+          .map((el: any) => ({
+            pts: (el.geometry as { lat: number; lon: number }[]).map(g => ({ lat: g.lat, lng: g.lon })),
+            kind: kindMap[el.tags?.highway] ?? 'residential',
+            name: el.tags?.['name:zh'] ?? el.tags?.name ?? '',
+          }));
+        setRoadFeatures(roads);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [settings.showRoadLayer, settings.analysisPoint]);
+
+  // POI — schools / parks / markets / medical / bus / public facilities
+  useEffect(() => {
+    if (!settings.showPoiLayer || !settings.analysisPoint) { setPoiFeatures([]); setPoiStats(null); return; }
+    const { lat, lng } = settings.analysisPoint;
+    let cancelled = false;
+    const r = 0.006;
+    const bbox = `${lat - r},${lng - r},${lat + r},${lng + r}`;
+    const q = `[out:json][timeout:18];(
+      node["amenity"~"^(school|kindergarten|university|college)$"](${bbox});
+      way["amenity"~"^(school|kindergarten|university|college)$"](${bbox});
+      node["leisure"~"^(park|playground|garden)$"](${bbox});
+      way["leisure"~"^(park|playground|garden)$"](${bbox});
+      node["amenity"="marketplace"](${bbox});
+      node["shop"~"^(supermarket|convenience|market)$"](${bbox});
+      node["amenity"~"^(hospital|clinic|pharmacy|dentist)$"](${bbox});
+      node["highway"="bus_stop"](${bbox});
+      node["amenity"~"^(library|post_office|community_centre|police|fire_station|townhall)$"](${bbox});
+      way["amenity"~"^(library|community_centre|police|townhall)$"](${bbox});
+    );out center 500;`;
+    fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q) })
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        const catOf = (el: any): PoiCat | null => {
+          const a = el.tags?.amenity, l = el.tags?.leisure, s = el.tags?.shop, h = el.tags?.highway;
+          if (['school','kindergarten','university','college'].includes(a)) return 'school';
+          if (['park','playground','garden'].includes(l)) return 'park';
+          if (a === 'marketplace' || ['supermarket','convenience','market'].includes(s)) return 'market';
+          if (['hospital','clinic','pharmacy','dentist'].includes(a)) return 'medical';
+          if (h === 'bus_stop') return 'bus';
+          if (['library','post_office','community_centre','police','fire_station','townhall'].includes(a)) return 'public';
+          return null;
+        };
+        const pois: PoiFeature[] = (data.elements ?? [])
+          .map((el: any) => {
+            const cat = catOf(el);
+            if (!cat) return null;
+            const plat = el.lat ?? el.center?.lat;
+            const plng = el.lon ?? el.center?.lon;
+            if (!plat || !plng) return null;
+            return { lat: plat, lng: plng, cat, name: el.tags?.['name:zh'] ?? el.tags?.name ?? '' };
+          })
+          .filter(Boolean) as PoiFeature[];
+        setPoiFeatures(pois);
+        // 500m circle stats
+        const stats: PoiStats = { school: 0, park: 0, market: 0, medical: 0, bus: 0, public: 0 };
+        pois.forEach(p => { if (haversineM(lat, lng, p.lat, p.lng) <= 500) stats[p.cat]++; });
+        setPoiStats(stats);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [settings.showPoiLayer, settings.analysisPoint]);
 
   // Convert Date to JulianDate for Cesium
   const julianDate = JulianDate.fromDate(settings.currentTime);
@@ -309,24 +636,58 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
   };
 
   const handleLeftClick = (movement: any) => {
-    if (viewerRef.current?.cesiumElement) {
-      const viewer = viewerRef.current.cesiumElement;
-      
-      // 1. 優先嘗試拾取 3D 物體表面 (如建築物)
-      let cartesian = viewer.scene.pickPosition(movement.position);
-      
-      // 2. 如果沒點到建築物，則拾取地表橢球體
-      if (!cartesian) {
-        cartesian = viewer.camera.pickEllipsoid(movement.position, viewer.scene.globe.ellipsoid);
-      }
+    if (!viewerRef.current?.cesiumElement) return;
+    const viewer = viewerRef.current.cesiumElement;
+    let cartesian = viewer.scene.pickPosition(movement.position);
+    if (!cartesian) cartesian = viewer.camera.pickEllipsoid(movement.position, viewer.scene.globe.ellipsoid);
+    if (!cartesian) return;
 
-      if (cartesian) {
-        const cartographic = viewer.scene.globe.ellipsoid.cartesianToCartographic(cartesian);
-        const lat = cartographic.latitude * (180 / Math.PI);
-        const lng = cartographic.longitude * (180 / Math.PI);
-        onLocationClick(lat, lng);
-      }
+    const cartographic = viewer.scene.globe.ellipsoid.cartesianToCartographic(cartesian);
+    const lat = cartographic.latitude * (180 / Math.PI);
+    const lng = cartographic.longitude * (180 / Math.PI);
+
+    // ── 距離量測模式 ──
+    if (settings.showMeasureTool) {
+      setMeasurePts(prev => [...prev, { lat, lng }]);
+      return;
     }
+
+    // ── 高程剖面模式 ──
+    if (settings.showElevProfile) {
+      setElevPts(prev => {
+        const next = prev.length >= 2 ? [{ lat, lng }] : [...prev, { lat, lng }];
+        if (next.length === 2) {
+          // Sample 10 intermediate + 2 endpoints = 12 total
+          const SAMPLES = 12;
+          const locations = Array.from({ length: SAMPLES }, (_, i) => ({
+            latitude: next[0].lat + (next[1].lat - next[0].lat) * (i / (SAMPLES - 1)),
+            longitude: next[0].lng + (next[1].lng - next[0].lng) * (i / (SAMPLES - 1)),
+          }));
+          setElevLoading(true);
+          fetch('/open-elevation/api/v1/lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ locations }),
+          })
+            .then(r => r.json())
+            .then(json => {
+              const results: { d: number; e: number }[] = json.results.map((r: any, i: number) => ({
+                d: haversineM(next[0].lat, next[0].lng, locations[i].latitude, locations[i].longitude),
+                e: r.elevation as number,
+              }));
+              setElevData(results);
+            })
+            .catch(() => {})
+            .finally(() => setElevLoading(false));
+        } else {
+          setElevData([]);
+        }
+        return next;
+      });
+      return;
+    }
+
+    onLocationClick(lat, lng);
   };
 
   // Calculate Solar Azimuth Line positions
@@ -451,6 +812,7 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
       >
         <ScreenSpaceEventHandler>
           <ScreenSpaceEvent action={handleLeftClick} type={ScreenSpaceEventType.LEFT_CLICK} />
+          <ScreenSpaceEvent action={() => { if (settings.showMeasureTool) setMeasurePts([]); }} type={ScreenSpaceEventType.RIGHT_CLICK} />
         </ScreenSpaceEventHandler>
 
         {/* OSM 2D Imagery */}
@@ -777,12 +1139,441 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
                  />
               </Entity>
             )}
+
+            {/* ── Buffer 半徑圈 ── */}
+            {settings.bufferRadius > 0 && ([100, 300, 500, 800] as const)
+              .filter(r => r <= settings.bufferRadius)
+              .map(r => (
+                <Entity key={`buf-${r}`} position={Cartesian3.fromDegrees(settings.analysisPoint!.lng, settings.analysisPoint!.lat, 1)}>
+                  <EllipseGraphics
+                    semiMajorAxis={r}
+                    semiMinorAxis={r}
+                    material={Color.fromCssColorString('#00BCD4').withAlpha(0.06)}
+                    outline={true}
+                    outlineColor={Color.fromCssColorString('#00BCD4').withAlpha(0.55)}
+                    outlineWidth={1.5}
+                    heightReference={1 /* CLAMP_TO_GROUND */}
+                  />
+                </Entity>
+              ))
+            }
+            {/* Buffer ring labels */}
+            {settings.bufferRadius > 0 && ([100, 300, 500, 800] as const)
+              .filter(r => r <= settings.bufferRadius)
+              .map(r => {
+                const offsetLng = settings.analysisPoint!.lng + r / (111320 * Math.cos(settings.analysisPoint!.lat * Math.PI / 180));
+                return (
+                  <Entity key={`buf-lbl-${r}`} position={Cartesian3.fromDegrees(offsetLng, settings.analysisPoint!.lat, 8)}>
+                    <LabelGraphics
+                      text={`${r}m`}
+                      font="bold 11px monospace"
+                      fillColor={Color.fromCssColorString('#00BCD4')}
+                      outlineColor={Color.fromBytes(0, 0, 0, 200)}
+                      outlineWidth={3}
+                      style={LabelStyle.FILL_AND_OUTLINE}
+                      showBackground={true}
+                      backgroundColor={Color.fromBytes(0, 20, 25, 170)}
+                      backgroundPadding={new Cartesian2(5, 3)}
+                      disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                    />
+                  </Entity>
+                );
+              })
+            }
+
+            {/* ── 距離量測（連續折線）── */}
+            {settings.showMeasureTool && measurePts.length >= 1 && (() => {
+              const segDists = measurePts.slice(1).map((p, i) =>
+                haversineM(measurePts[i].lat, measurePts[i].lng, p.lat, p.lng));
+              const totalDist = segDists.reduce((s, d) => s + d, 0);
+              return (
+                <>
+                  {measurePts.map((p, i) => (
+                    <Entity key={`mp-${i}`} position={Cartesian3.fromDegrees(p.lng, p.lat, 6)}>
+                      <PointGraphics
+                        pixelSize={i === 0 ? 12 : 10}
+                        color={Color.fromCssColorString(i === 0 ? '#FF6B35' : '#00BCD4')}
+                        outlineColor={Color.WHITE} outlineWidth={2}
+                        disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                      />
+                    </Entity>
+                  ))}
+                  {measurePts.length >= 2 && (
+                    <Entity>
+                      <PolylineGraphics
+                        positions={measurePts.map(p => Cartesian3.fromDegrees(p.lng, p.lat, 4))}
+                        width={2.5}
+                        material={Color.fromCssColorString('#00BCD4').withAlpha(0.85)}
+                      />
+                    </Entity>
+                  )}
+                  {measurePts.slice(1).map((p, i) => (
+                    <Entity key={`msl-${i}`} position={Cartesian3.fromDegrees(
+                      (measurePts[i].lng + p.lng) / 2,
+                      (measurePts[i].lat + p.lat) / 2, 10
+                    )}>
+                      <LabelGraphics
+                        text={fmtDist(segDists[i])}
+                        font="11px monospace"
+                        fillColor={Color.fromCssColorString('#B2EBF2')}
+                        outlineColor={Color.fromBytes(0, 0, 0, 220)}
+                        outlineWidth={3}
+                        style={LabelStyle.FILL_AND_OUTLINE}
+                        showBackground={true}
+                        backgroundColor={Color.fromBytes(0, 30, 40, 190)}
+                        backgroundPadding={new Cartesian2(5, 3)}
+                        disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                      />
+                    </Entity>
+                  ))}
+                  {measurePts.length >= 2 && (
+                    <Entity position={Cartesian3.fromDegrees(
+                      measurePts[measurePts.length - 1].lng,
+                      measurePts[measurePts.length - 1].lat, 14
+                    )}>
+                      <LabelGraphics
+                        text={`📏 ${fmtDist(totalDist)}`}
+                        font="bold 14px monospace"
+                        fillColor={Color.fromCssColorString('#00E5FF')}
+                        outlineColor={Color.fromBytes(0, 0, 0, 240)}
+                        outlineWidth={4}
+                        style={LabelStyle.FILL_AND_OUTLINE}
+                        showBackground={true}
+                        backgroundColor={Color.fromBytes(0, 20, 30, 210)}
+                        backgroundPadding={new Cartesian2(10, 5)}
+                        disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                        pixelOffset={new Cartesian2(0, -22) as any}
+                      />
+                    </Entity>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* ── 高程剖面端點 ── */}
+            {settings.showElevProfile && elevPts.map((p, i) => (
+              <Entity key={`ep-${i}`} position={Cartesian3.fromDegrees(p.lng, p.lat, 6)}>
+                <PointGraphics pixelSize={10} color={Color.fromCssColorString('#8BC34A')} outlineColor={Color.WHITE} outlineWidth={2} disableDepthTestDistance={Number.POSITIVE_INFINITY} />
+                <LabelGraphics
+                  text={i === 0 ? 'A' : 'B'}
+                  font="bold 13px sans-serif"
+                  fillColor={Color.fromCssColorString('#CDDC39')}
+                  outlineColor={Color.fromBytes(0, 0, 0, 220)}
+                  outlineWidth={3}
+                  style={LabelStyle.FILL_AND_OUTLINE}
+                  pixelOffset={new Cartesian2(0, -20)}
+                  disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                />
+              </Entity>
+            ))}
+            {settings.showElevProfile && elevPts.length === 2 && (
+              <Entity>
+                <PolylineGraphics
+                  positions={[
+                    Cartesian3.fromDegrees(elevPts[0].lng, elevPts[0].lat, 4),
+                    Cartesian3.fromDegrees(elevPts[1].lng, elevPts[1].lat, 4),
+                  ]}
+                  width={2}
+                  material={Color.fromCssColorString('#8BC34A').withAlpha(0.7)}
+                />
+              </Entity>
+            )}
+
+            {/* ── 不透水面概略 (熱指數計算圈) ── */}
+            {settings.showImperviousLayer && landscapeData && (
+              <>
+                {[0.25, 0.5, 0.75, 1.0].map((frac, i) => {
+                  const hi = landscapeData.urbanStress.surfaceHeatIndex;
+                  const radius = 60 + hi * 350 * frac;
+                  const alpha = hi * 0.22 * (1.2 - frac);
+                  const r = Math.round(255 * Math.min(hi * 1.4, 1));
+                  const g = Math.round(80 * (1 - hi));
+                  return (
+                    <Entity key={`imp-${i}`} position={Cartesian3.fromDegrees(settings.analysisPoint!.lng, settings.analysisPoint!.lat, 2)}>
+                      <EllipseGraphics
+                        semiMajorAxis={radius}
+                        semiMinorAxis={radius}
+                        material={Color.fromBytes(r, g, 30, Math.round(alpha * 255))}
+                        heightReference={1}
+                      />
+                    </Entity>
+                  );
+                })}
+                <Entity position={Cartesian3.fromDegrees(settings.analysisPoint!.lng, settings.analysisPoint!.lat + 0.004, 10)}>
+                  <LabelGraphics
+                    text={`不透水面 ≈ ${(landscapeData.urbanStress.surfaceHeatIndex * 100).toFixed(0)}%`}
+                    font="bold 12px sans-serif"
+                    fillColor={Color.fromCssColorString('#FF7043')}
+                    outlineColor={Color.fromBytes(0, 0, 0, 220)}
+                    outlineWidth={3}
+                    style={LabelStyle.FILL_AND_OUTLINE}
+                    showBackground={true}
+                    backgroundColor={Color.fromBytes(25, 10, 5, 185)}
+                    backgroundPadding={new Cartesian2(8, 4)}
+                    disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                  />
+                </Entity>
+              </>
+            )}
+
+            {/* ── 綠覆 NDVI 概略 (OSM 綠地節點) ── */}
+            {settings.showNdviLayer && ndviFeatures.map((f, i) => (
+              <Entity key={`ndvi-${i}`} position={Cartesian3.fromDegrees(f.lng, f.lat, 4)}>
+                <PointGraphics
+                  pixelSize={6}
+                  color={Color.fromCssColorString('#4CAF50').withAlpha(0.7)}
+                  disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                />
+              </Entity>
+            ))}
+            {settings.showNdviLayer && ndviFeatures.length > 0 && (
+              <Entity position={Cartesian3.fromDegrees(settings.analysisPoint!.lng, settings.analysisPoint!.lat - 0.004, 10)}>
+                <LabelGraphics
+                  text={`🌿 綠覆節點 ${ndviFeatures.length} 處 (半徑 ~900m)`}
+                  font="bold 12px sans-serif"
+                  fillColor={Color.fromCssColorString('#66BB6A')}
+                  outlineColor={Color.fromBytes(0, 0, 0, 220)}
+                  outlineWidth={3}
+                  style={LabelStyle.FILL_AND_OUTLINE}
+                  showBackground={true}
+                  backgroundColor={Color.fromBytes(5, 20, 5, 185)}
+                  backgroundPadding={new Cartesian2(8, 4)}
+                  disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                />
+              </Entity>
+            )}
+
+            {/* ── 建物密度熱區 (5×5 格網) ── */}
+            {settings.showBuildingDensity && buildingGrid.map((cell, i) => {
+              const maxCount = Math.max(...buildingGrid.map(c => c.count), 1);
+              const ratio = cell.count / maxCount;
+              const radius = 40 + ratio * 120;
+              const alpha = 0.12 + ratio * 0.28;
+              return (
+                <Entity key={`bd-${i}`} position={Cartesian3.fromDegrees(cell.lng, cell.lat, 2)}>
+                  <EllipseGraphics
+                    semiMajorAxis={radius}
+                    semiMinorAxis={radius}
+                    material={Color.fromBytes(255, Math.round(152 * (1 - ratio)), 0, Math.round(alpha * 255))}
+                    heightReference={1}
+                  />
+                </Entity>
+              );
+            })}
+            {settings.showBuildingDensity && buildingGrid.length > 0 && (
+              <Entity position={Cartesian3.fromDegrees(settings.analysisPoint!.lng, settings.analysisPoint!.lat + 0.005, 10)}>
+                <LabelGraphics
+                  text={`🏙 建物密度 · ${buildingGrid.reduce((s, c) => s + c.count, 0)} 棟 (格網)`}
+                  font="bold 12px sans-serif"
+                  fillColor={Color.fromCssColorString('#FF9800')}
+                  outlineColor={Color.fromBytes(0, 0, 0, 220)}
+                  outlineWidth={3}
+                  style={LabelStyle.FILL_AND_OUTLINE}
+                  showBackground={true}
+                  backgroundColor={Color.fromBytes(25, 15, 0, 185)}
+                  backgroundPadding={new Cartesian2(8, 4)}
+                  disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                />
+              </Entity>
+            )}
+
+            {/* ── 行道樹 (台北市官方 blob / OSM fallback) ── */}
+            {settings.showStreetTreeLayer && treeFeatures.map((t, i) => (
+              <Entity key={`tree-${i}`} position={Cartesian3.fromDegrees(t.lng, t.lat, 4)}>
+                <PointGraphics
+                  pixelSize={t.src === 'tpe' ? 6 : 5}
+                  color={Color.fromCssColorString(t.src === 'tpe' ? '#B5D867' : '#69F0AE').withAlpha(0.82)}
+                  outlineColor={Color.fromCssColorString('#1B5E20').withAlpha(0.6)}
+                  outlineWidth={1}
+                  disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                />
+              </Entity>
+            ))}
+            {/* ── 道路分級 ── */}
+            {settings.showRoadLayer && roadFeatures.map((road, i) => {
+              const roadColor: Record<RoadKind, string> = {
+                trunk: '#E53935', primary: '#FF7043', secondary: '#FFA726',
+                tertiary: '#FFD54F', residential: '#78909C',
+              };
+              const roadWidth: Record<RoadKind, number> = {
+                trunk: 5, primary: 4, secondary: 3, tertiary: 2, residential: 1.5,
+              };
+              const positions = road.pts.map(p => Cartesian3.fromDegrees(p.lng, p.lat, 2));
+              return (
+                <Entity key={`road-${i}`}>
+                  <PolylineGraphics
+                    positions={positions}
+                    width={roadWidth[road.kind]}
+                    material={Color.fromCssColorString(roadColor[road.kind]).withAlpha(0.75)}
+                    clampToGround
+                    arcType={0}
+                  />
+                </Entity>
+              );
+            })}
+            {/* 道路名稱 + 壓力標籤（primary 以上才顯示） */}
+            {settings.showRoadLayer && roadFeatures
+              .filter(r => (r.kind === 'primary' || r.kind === 'trunk' || r.kind === 'secondary') && r.name)
+              .filter((_, i) => i < 20)
+              .map((road, i) => {
+                const mid = road.pts[Math.floor(road.pts.length / 2)];
+                const stressLabel: Record<RoadKind, string> = {
+                  trunk: '快速道路 ⬛高流量', primary: '主幹道 🔴高流量',
+                  secondary: '次幹道 🟡中流量', tertiary: '地方道 🟢低流量', residential: '住宅路',
+                };
+                return (
+                  <Entity key={`rlabel-${i}`} position={Cartesian3.fromDegrees(mid.lng, mid.lat, 8)}>
+                    <LabelGraphics
+                      text={`${road.name}  ${stressLabel[road.kind]}`}
+                      font="10px sans-serif"
+                      fillColor={Color.fromCssColorString('#FFFDE7')}
+                      outlineColor={Color.fromBytes(0, 0, 0, 200)}
+                      outlineWidth={2}
+                      style={LabelStyle.FILL_AND_OUTLINE}
+                      showBackground
+                      backgroundColor={Color.fromBytes(20, 20, 20, 160)}
+                      backgroundPadding={new Cartesian2(5, 3)}
+                      disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                      distanceDisplayCondition={{ near: 0, far: 800 } as any}
+                    />
+                  </Entity>
+                );
+              })}
+
+            {/* ── 生活機能 POI ── */}
+            {settings.showPoiLayer && poiFeatures.map((poi, i) => {
+              const catColor: Record<PoiCat, string> = {
+                school: '#4FC3F7', park: '#81C784', market: '#FFB74D',
+                medical: '#F48FB1', bus: '#CE93D8', public: '#80CBC4',
+              };
+              const catEmoji: Record<PoiCat, string> = {
+                school: '🎓', park: '🌿', market: '🛒',
+                medical: '🏥', bus: '🚌', public: '🏛',
+              };
+              const within500 = haversineM(settings.analysisPoint!.lat, settings.analysisPoint!.lng, poi.lat, poi.lng) <= 500;
+              return (
+                <Entity key={`poi-${i}`} position={Cartesian3.fromDegrees(poi.lng, poi.lat, 5)}>
+                  <PointGraphics
+                    pixelSize={within500 ? 8 : 5}
+                    color={Color.fromCssColorString(catColor[poi.cat]).withAlpha(within500 ? 0.9 : 0.5)}
+                    outlineColor={Color.fromBytes(0, 0, 0, 160)}
+                    outlineWidth={1}
+                    disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                  />
+                  {poi.name && within500 && (
+                    <LabelGraphics
+                      text={`${catEmoji[poi.cat]} ${poi.name}`}
+                      font="10px sans-serif"
+                      fillColor={Color.fromCssColorString(catColor[poi.cat])}
+                      outlineColor={Color.fromBytes(0, 0, 0, 220)}
+                      outlineWidth={2}
+                      style={LabelStyle.FILL_AND_OUTLINE}
+                      showBackground
+                      backgroundColor={Color.fromBytes(10, 10, 20, 180)}
+                      backgroundPadding={new Cartesian2(5, 3)}
+                      pixelOffset={new Cartesian2(0, -14)}
+                      disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                      distanceDisplayCondition={{ near: 0, far: 600 } as any}
+                    />
+                  )}
+                </Entity>
+              );
+            })}
+            {/* 500m 生活圈統計標籤 */}
+            {settings.showPoiLayer && poiStats && (() => {
+              const catEmoji: Record<PoiCat, string> = {
+                school: '🎓', park: '🌿', market: '🛒',
+                medical: '🏥', bus: '🚌', public: '🏛',
+              };
+              const lines = (Object.keys(poiStats) as PoiCat[])
+                .filter(k => poiStats[k] > 0)
+                .map(k => `${catEmoji[k]}${poiStats[k]}`)
+                .join('  ');
+              return (
+                <Entity position={Cartesian3.fromDegrees(
+                  settings.analysisPoint!.lng,
+                  settings.analysisPoint!.lat + 0.006, 10
+                )}>
+                  <LabelGraphics
+                    text={`500m 生活圈  ${lines || '設施稀少'}`}
+                    font="bold 11px sans-serif"
+                    fillColor={Color.fromCssColorString('#E0F7FA')}
+                    outlineColor={Color.fromBytes(0, 0, 0, 220)}
+                    outlineWidth={3}
+                    style={LabelStyle.FILL_AND_OUTLINE}
+                    showBackground
+                    backgroundColor={Color.fromBytes(0, 40, 55, 200)}
+                    backgroundPadding={new Cartesian2(10, 5)}
+                    disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                  />
+                </Entity>
+              );
+            })()}
+
+            {settings.showStreetTreeLayer && treeFeatures.length > 0 && (() => {
+              const tpeCount = treeFeatures.filter(t => t.src === 'tpe').length;
+              const srcLabel = tpeCount > 0 ? '台北市官方' : 'OSM';
+              return (
+                <Entity position={Cartesian3.fromDegrees(settings.analysisPoint!.lng, settings.analysisPoint!.lat - 0.005, 10)}>
+                  <LabelGraphics
+                    text={`🌳 ${treeFeatures.length} 棵 (${srcLabel})`}
+                    font="bold 12px sans-serif"
+                    fillColor={Color.fromCssColorString('#B5D867')}
+                    outlineColor={Color.fromBytes(0, 0, 0, 220)}
+                    outlineWidth={3}
+                    style={LabelStyle.FILL_AND_OUTLINE}
+                    showBackground={true}
+                    backgroundColor={Color.fromBytes(10, 30, 5, 185)}
+                    backgroundPadding={new Cartesian2(8, 4)}
+                    disableDepthTestDistance={Number.POSITIVE_INFINITY}
+                  />
+                </Entity>
+              );
+            })()}
           </>
         )}
       </Viewer>
 
       {/* Cesium 原生交通圖層 — GroundPolylinePrimitive 貼地 */}
       <TransportCesiumLayer viewerRef={viewerRef} settings={settings} />
+
+      {/* 量測模式提示 */}
+      {settings.showMeasureTool && (
+        <div style={{
+          position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0,188,212,0.15)', border: '1px solid rgba(0,188,212,0.45)',
+          borderRadius: 4, padding: '4px 12px', zIndex: 40, pointerEvents: 'none',
+          fontSize: 10, color: '#00BCD4', letterSpacing: '0.12em',
+        }}>
+          {measurePts.length === 0
+            ? '📏 點選起點'
+            : (() => {
+                const segs = measurePts.slice(1).map((p, i) => haversineM(measurePts[i].lat, measurePts[i].lng, p.lat, p.lng));
+                const total = segs.reduce((s, d) => s + d, 0);
+                return measurePts.length === 1
+                  ? `📏 ${measurePts.length} 點 · 繼續點選新增 · 右鍵清除`
+                  : `📏 ${fmtDist(total)} · ${measurePts.length} 點 · 繼續點選 · 右鍵清除`;
+              })()
+          }
+        </div>
+      )}
+
+      {/* 高程剖面模式提示 */}
+      {settings.showElevProfile && (
+        <div style={{
+          position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(139,195,74,0.15)', border: '1px solid rgba(139,195,74,0.45)',
+          borderRadius: 4, padding: '4px 12px', zIndex: 40, pointerEvents: 'none',
+          fontSize: 10, color: '#8BC34A', letterSpacing: '0.12em',
+        }}>
+          {elevPts.length === 0 ? '⛰ 點選起點 A' : elevPts.length === 1 ? '⛰ 點選終點 B' : elevLoading ? '⛰ 高程取樣中...' : '⛰ 點選起點重設'}
+        </div>
+      )}
+
+      {/* 高程剖面圖 */}
+      {settings.showElevProfile && elevData.length > 0 && (
+        <ElevProfilePanel data={elevData} onClose={() => { setElevPts([]); setElevData([]); }} />
+      )}
 
       {/* HUD Info */}
       <div className="absolute bottom-4 left-4 bg-elegant-surface/80 border border-elegant-border p-3 font-mono text-[10px] pointer-events-none rounded shadow-lg">

@@ -104,6 +104,13 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/open-elevation/, ''),
           secure: true,
         },
+        // 台北市行道樹 Azure Blob（繞過 CORS 限制）
+        '/tpe-tree': {
+          target: 'https://tppkl.blob.core.windows.net',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/tpe-tree/, '/blobfs'),
+          secure: true,
+        },
       },
     },
     define: {

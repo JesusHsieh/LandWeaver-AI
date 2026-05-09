@@ -154,6 +154,17 @@ export interface MapSettings {
   showKaohsiungMrtLayer: boolean;  // 高捷路線 + 站點
   showKaohsiungMrtTrains: boolean; // 高捷列車動態 (TDX LiveBoard)
   showYouBikeLayer: boolean;       // YouBike 站點密度
+  // ── Analysis tools
+  bufferRadius: 0 | 100 | 300 | 500 | 800;
+  showMeasureTool: boolean;        // 兩點距離量測
+  showElevProfile: boolean;        // 高程剖面（兩點取樣）
+  showImperviousLayer: boolean;    // 不透水面概略
+  showNdviLayer: boolean;          // 綠覆/NDVI 概略
+  showBuildingDensity: boolean;    // 建物密度熱區
+  showStreetTreeLayer: boolean;    // 行道樹（台北市官方 / OSM fallback）
+  // ── 交通區位分析
+  showRoadLayer: boolean;          // 道路分級 + 壓力標籤
+  showPoiLayer: boolean;           // 生活機能 POI（學校/公園/市場/公共設施）
   currentTime: Date;
   selectedBase: {
     lat: number;
@@ -211,6 +222,15 @@ export const INITIAL_SETTINGS: MapSettings = {
   showKaohsiungMrtLayer: false,
   showKaohsiungMrtTrains: false,
   showYouBikeLayer: false,
+  bufferRadius: 0,
+  showMeasureTool: false,
+  showElevProfile: false,
+  showImperviousLayer: false,
+  showNdviLayer: false,
+  showBuildingDensity: false,
+  showStreetTreeLayer: false,
+  showRoadLayer: false,
+  showPoiLayer: false,
   currentTime: new Date(),
   selectedBase: {
     lat: 25.0339, 

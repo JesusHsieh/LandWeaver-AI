@@ -579,6 +579,76 @@ export const Sidebar: React.FC<SidebarProps> = ({ settings, setSettings, microDa
           <LayerRow label="日照與陰影模擬"        active={settings.showShadows}       onClick={() => set('showShadows', !settings.showShadows)} />
           <LayerRow label="微氣候監測"            active={settings.showMicroClimate}  onClick={() => set('showMicroClimate', !settings.showMicroClimate)} />
           <LayerRow label="坡度與淨流量分析"      active={settings.showSlopeAnalysis} onClick={() => set('showSlopeAnalysis', !settings.showSlopeAnalysis)} />
+
+          {/* Buffer 半徑圈 */}
+          <div className="mt-2 mb-1">
+            <div className="text-[9px] mb-1.5 tracking-widest uppercase" style={{ color: '#555' }}>Buffer 半徑圈</div>
+            <div className="flex gap-1 flex-wrap">
+              {([0, 100, 300, 500, 800] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => set('bufferRadius', r)}
+                  className="text-[9px] px-2 py-0.5 rounded transition-all"
+                  style={{
+                    background: settings.bufferRadius === r ? 'rgba(224,90,43,0.25)' : 'rgba(255,255,255,0.04)',
+                    color: settings.bufferRadius === r ? '#E05A2B' : '#666',
+                    border: `1px solid ${settings.bufferRadius === r ? 'rgba(224,90,43,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                  }}
+                >
+                  {r === 0 ? 'Off' : `${r}m`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 量測工具 */}
+          <div className="mt-2 mb-0.5" style={{ height: '1px', background: '#222' }} />
+          <LayerRow
+            label="距離量測"
+            sub={settings.showMeasureTool ? '點選兩點測量距離' : '兩點直線距離'}
+            active={settings.showMeasureTool}
+            onClick={() => set('showMeasureTool', !settings.showMeasureTool)}
+            accent="#00BCD4"
+          />
+          <LayerRow
+            label="高程剖面"
+            sub={settings.showElevProfile ? '點選兩點取樣高程' : '兩點高程斷面圖'}
+            active={settings.showElevProfile}
+            onClick={() => set('showElevProfile', !settings.showElevProfile)}
+            accent="#8BC34A"
+          />
+
+          {/* 概略分析圖層 */}
+          <div className="mt-2 mb-0.5" style={{ height: '1px', background: '#222' }} />
+          <div className="text-[9px] mb-1 tracking-widest uppercase" style={{ color: '#555' }}>概略環境圖層</div>
+          <LayerRow
+            label="不透水面概略"
+            sub="以熱指數推估 · 僅供參考"
+            active={settings.showImperviousLayer}
+            onClick={() => set('showImperviousLayer', !settings.showImperviousLayer)}
+            accent="#FF7043"
+          />
+          <LayerRow
+            label="綠覆 / NDVI 概略"
+            sub="OSM 公園森林節點"
+            active={settings.showNdviLayer}
+            onClick={() => set('showNdviLayer', !settings.showNdviLayer)}
+            accent="#4CAF50"
+          />
+          <LayerRow
+            label="建物密度熱區"
+            sub="OSM 建物密度格網"
+            active={settings.showBuildingDensity}
+            onClick={() => set('showBuildingDensity', !settings.showBuildingDensity)}
+            accent="#FF9800"
+          />
+          <LayerRow
+            label="行道樹"
+            sub="台北市官方 · 其他縣市 OSM"
+            active={settings.showStreetTreeLayer}
+            onClick={() => set('showStreetTreeLayer', !settings.showStreetTreeLayer)}
+            accent="#76FF03"
+          />
         </Section>
 
         <Divider />
@@ -661,8 +731,67 @@ export const Sidebar: React.FC<SidebarProps> = ({ settings, setSettings, microDa
 
         <Divider />
 
-        {/* ━━━ BLOCK 5 : 交通流動層 ━━━ */}
-        <Section label="▸ Transport · 交通流動" labelColor="#FF6F00" defaultCollapsed>
+        {/* ━━━ BLOCK 5 : 交通區位 + 流動層 ━━━ */}
+        <Section label="▸ Transport · 交通區位" labelColor="#FF6F00" defaultCollapsed>
+
+          {/* ── 道路分級 + 生活機能 ── */}
+          <div className="text-[8px] font-bold mb-1 px-0.5 tracking-widest" style={{ color: '#666' }}>道路 · 生活機能</div>
+
+          <LayerRow
+            label="道路分級"
+            sub="主幹道 / 次幹道 / 地方道 · 壓力標籤"
+            active={settings.showRoadLayer}
+            onClick={() => set('showRoadLayer', !settings.showRoadLayer)}
+            accent="#FF7043"
+          />
+          {settings.showRoadLayer && (
+            <div className="mt-1 mb-2 px-1 flex flex-wrap gap-x-3 gap-y-1">
+              {[
+                { color: '#E53935', label: '快速道路' },
+                { color: '#FF7043', label: '主幹道' },
+                { color: '#FFA726', label: '次幹道' },
+                { color: '#FFD54F', label: '地方道' },
+                { color: '#78909C', label: '住宅路' },
+              ].map(({ color, label }) => (
+                <span key={label} className="flex items-center gap-1 text-[9px]" style={{ color: '#888' }}>
+                  <span style={{ display: 'inline-block', width: 16, height: 3, background: color, borderRadius: 2 }} />
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <LayerRow
+            label="生活機能 POI"
+            sub="學校 · 公園 · 市場 · 醫療 · 公車 · 公共設施"
+            active={settings.showPoiLayer}
+            onClick={() => set('showPoiLayer', !settings.showPoiLayer)}
+            accent="#4FC3F7"
+          />
+          {settings.showPoiLayer && (
+            <div className="mt-1 mb-1 px-1 flex flex-wrap gap-x-3 gap-y-1">
+              {[
+                { color: '#4FC3F7', label: '🎓 學校' },
+                { color: '#81C784', label: '🌿 公園' },
+                { color: '#FFB74D', label: '🛒 市場' },
+                { color: '#F48FB1', label: '🏥 醫療' },
+                { color: '#CE93D8', label: '🚌 公車' },
+                { color: '#80CBC4', label: '🏛 公共' },
+              ].map(({ color, label }) => (
+                <span key={label} className="text-[9px]" style={{ color }}>{label}</span>
+              ))}
+            </div>
+          )}
+          {settings.showPoiLayer && (
+            <div className="mb-2 text-[9px] px-1" style={{ color: '#444' }}>
+              實心大點 = 500m 內 · 淡小點 = 500–600m · 統計標籤顯示於地圖
+            </div>
+          )}
+
+          <div className="mt-2 mb-1" style={{ height: '1px', background: '#222' }} />
+
+          {/* ── 大眾運輸動態 ── */}
+          <div className="text-[8px] font-bold mt-1 mb-1 px-0.5 tracking-widest" style={{ color: '#666' }}>大眾運輸動態</div>
           <div className="text-[9px] mb-2 px-1" style={{ color: '#555' }}>
             Cesium GroundPolylinePrimitive · 路線貼合地球表面
           </div>
