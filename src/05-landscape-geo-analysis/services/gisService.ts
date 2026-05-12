@@ -11,14 +11,14 @@ import {
 
 // ============================================================
 // Zone + Town Cache（避免重複打 NLSC 慢 API）
-// key = "lat3,lng3"（四捨五入至 3 位小數，~110m 精度）
+// key = "lat5,lng5"（四捨五入至 5 位小數，約 1m 精度）
 // ============================================================
 type ZoneTownCache = { zone: string; town: AdminResult | null };
 const _zoneTownCache = new Map<string, ZoneTownCache>();
 const _zoneTownInFlight = new Map<string, Promise<ZoneTownCache>>();
 
 function _zoneKey(lat: number, lng: number) {
-  return `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  return `${lat.toFixed(5)},${lng.toFixed(5)}`;
 }
 
 async function fetchZoneAndTownCached(lat: number, lng: number): Promise<ZoneTownCache> {
@@ -73,23 +73,35 @@ export const GISService = {
   // -------------------------------------------------------
   // getMicroClimateData — 整合所有即時 API
   // -------------------------------------------------------
-  async getMicroClimateData(lat: number, lng: number, date: Date): Promise<MicroClimateData> {
+  async getMicroClimateData(
+    lat: number,
+    lng: number,
+    date: Date,
+    signal?: AbortSignal,
+  ): Promise<MicroClimateData> {
     const sunPos = this.calculateSolarPosition(lat, lng, date);
 
     // Run all real API calls in parallel
-    // 氣象：Open-Meteo（主）→ CWA（台灣備用，需 Key）
-    const [openMeteo, cwa, air, solar, elevation] = await Promise.allSettled([
-      fetchOpenMeteoWeather(lat, lng),
-      fetchCWAWeather(lat, lng),
-      fetchEPAAirQuality(lat, lng),
-      fetchPVGISSolar(lat, lng),
-      fetchElevationData(lat, lng),
+    // 氣象：Open-Meteo（主）失敗時才補 CWA，避免成功時仍等待 CWA。
+    const weatherPromise = fetchOpenMeteoWeather(lat, lng, signal)
+      .catch(openMeteoError =>
+        fetchCWAWeather(lat, lng, signal)
+          .catch(cwaError => {
+            throw new Error(
+              `Open-Meteo: ${openMeteoError?.message ?? openMeteoError}; CWA: ${cwaError?.message ?? cwaError}`
+            );
+          })
+      );
+
+    const [weather, air, solar, elevation] = await Promise.allSettled([
+      weatherPromise,
+      fetchEPAAirQuality(lat, lng, signal),
+      fetchPVGISSolar(lat, lng, signal),
+      fetchElevationData(lat, lng, signal),
     ]);
 
     // Weather: Open-Meteo first, CWA fallback, then constants
-    const om = openMeteo.status === 'fulfilled' ? openMeteo.value : null;
-    const cwaW = cwa.status === 'fulfilled' ? cwa.value : null;
-    const w = om ?? cwaW;  // Open-Meteo preferred (global, no key)
+    const w = weather.status === 'fulfilled' ? weather.value : null;
     const a = air.status       === 'fulfilled' ? air.value       : null;
     const s = solar.status     === 'fulfilled' ? solar.value     : null;
     const e = elevation.status === 'fulfilled' ? elevation.value : null;
@@ -97,8 +109,7 @@ export const GISService = {
     // Shadow coverage estimated from solar altitude (real solar geometry)
     const shadowCoverage = Math.max(0, Math.min(100, 90 - sunPos.altitude * 1.8));
 
-    if (!om)  console.warn('[GIS] Open-Meteo 失敗:', (openMeteo as PromiseRejectedResult).reason?.message);
-    if (!cwaW) console.info('[GIS] CWA 未使用（無 Key 或 Open-Meteo 已成功）');
+    if (!w)  console.warn('[GIS] 氣象 API 失敗:', (weather as PromiseRejectedResult).reason?.message);
     if (!a)   console.warn('[GIS] EPA 空品 API 失敗:', (air as PromiseRejectedResult).reason?.message);
     if (!s)   console.warn('[GIS] PVGIS 太陽能 API 失敗:', (solar as PromiseRejectedResult).reason?.message);
     if (!e)   console.warn('[GIS] Open-Elevation API 失敗:', (elevation as PromiseRejectedResult).reason?.message);
@@ -136,7 +147,7 @@ export const GISService = {
 
       // API source flags (for UI to show real/fallback indicator)
       _sources: {
-        weather:    om ? 'openMeteo' : (cwaW ? 'cwa' : 'fallback'),
+        weather:    w?.stationName === 'Open-Meteo 格點資料' ? 'openMeteo' : (w ? 'cwa' : 'fallback'),
         airQuality: air.status       === 'fulfilled' ? 'epa'           : 'fallback',
         solar:      solar.status     === 'fulfilled' ? 'pvgis'         : 'fallback',
         elevation:  elevation.status === 'fulfilled' ? 'openElevation' : 'fallback',

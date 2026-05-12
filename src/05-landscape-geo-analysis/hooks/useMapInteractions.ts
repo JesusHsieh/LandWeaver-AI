@@ -4,6 +4,16 @@ import { fetchElevationProfile } from '../services/clients/elevationClient';
 
 const SAMPLES = 12;
 
+function pickGroundCartographic(viewer: any, position: any) {
+  const ray = viewer.camera.getPickRay(position);
+  const globePoint = ray ? viewer.scene.globe.pick(ray, viewer.scene) : undefined;
+  const ellipsoidPoint = viewer.camera.pickEllipsoid(position, viewer.scene.globe.ellipsoid);
+  const cartesian = globePoint ?? ellipsoidPoint;
+  return cartesian
+    ? viewer.scene.globe.ellipsoid.cartesianToCartographic(cartesian)
+    : null;
+}
+
 export function useMapInteractions(
   viewerRef: React.RefObject<any>,
   settings: MapSettings,
@@ -25,11 +35,9 @@ export function useMapInteractions(
   const handleLeftClick = (movement: any) => {
     if (!viewerRef.current?.cesiumElement) return;
     const viewer = viewerRef.current.cesiumElement;
-    let cartesian = viewer.scene.pickPosition(movement.position);
-    if (!cartesian) cartesian = viewer.camera.pickEllipsoid(movement.position, viewer.scene.globe.ellipsoid);
-    if (!cartesian) return;
+    const cartographic = pickGroundCartographic(viewer, movement.position);
+    if (!cartographic) return;
 
-    const cartographic = viewer.scene.globe.ellipsoid.cartesianToCartographic(cartesian);
     const lat = cartographic.latitude * (180 / Math.PI);
     const lng = cartographic.longitude * (180 / Math.PI);
 

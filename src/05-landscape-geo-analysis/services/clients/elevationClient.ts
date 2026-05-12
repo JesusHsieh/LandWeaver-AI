@@ -3,6 +3,7 @@
 // ============================================================
 
 import { haversineM } from '../../utils/geo';
+import { withTimeout } from '../../utils/withTimeout';
 
 export interface ElevationResult {
   elevation: number;
@@ -16,7 +17,11 @@ export interface ElevationResult {
 // ============================================================
 // API 4：Open-Elevation — DEM 高程 / 坡度 / 坡向（免費，無需 Key）
 // ============================================================
-export async function fetchElevationData(lat: number, lng: number): Promise<ElevationResult> {
+export async function fetchElevationData(
+  lat: number,
+  lng: number,
+  signal?: AbortSignal,
+): Promise<ElevationResult> {
   const d = 0.001; // ~111 m
   const points = [
     { latitude: lat,     longitude: lng     }, // center
@@ -31,6 +36,7 @@ export async function fetchElevationData(lat: number, lng: number): Promise<Elev
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ locations: points }),
+    signal: withTimeout(signal, 8000),
   });
   if (!res.ok) throw new Error(`Open-Elevation 錯誤：${res.status}`);
   const json = await res.json();
@@ -72,7 +78,7 @@ export async function fetchElevationProfile(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ locations }),
-    signal,
+    signal: withTimeout(signal, 8000),
   });
   if (!res.ok) throw new Error(`Open-Elevation 錯誤：${res.status}`);
   const json = await res.json();

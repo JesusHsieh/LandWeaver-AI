@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { MicroClimateData, LandscapeDesignData } from '../types';
-import { getImageProvider, getImageProviderKey } from '../../shared/imageGenerationService';
+import { getConfiguredGeminiApiKey } from '../../shared/apiKeyService';
 
 export interface StrategyResult {
   diagnosis: string[];      // 場址診斷：識別出的主要問題
@@ -47,11 +47,7 @@ export async function fetchLandscapeStrategy(
   micro: MicroClimateData,
   land: LandscapeDesignData,
 ): Promise<StrategyResult> {
-  const provider = getImageProvider();
-  const storedKey = getImageProviderKey();
-  const apiKey =
-    (provider === 'gemini' ? storedKey : '') ||
-    (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || '';
+  const apiKey = getConfiguredGeminiApiKey();
 
   if (!apiKey) throw new Error('請先在右下角 🔑 設定 Gemini API Key（選 Google Gemini）');
 

@@ -48,7 +48,7 @@ export const RegulatoryBlock: React.FC<RegulatoryBlockProps> = ({ settings, set 
     />
     <LayerRow
       label="08E · 淹水潛勢"
-      sub="水利署 WRA · 114年裸地深度"
+      sub="水利署 WRA · 114nfp 裸地/深度"
       active={settings.showFloodPotential}
       onClick={() => set('showFloodPotential', !settings.showFloodPotential)}
       accent="#03A9F4"

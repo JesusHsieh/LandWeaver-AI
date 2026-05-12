@@ -1,9 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
+import { IMAGE_API_KEY_STORE, IMAGE_PROVIDER_STORE } from './apiKeyService';
 
 export type ImageProvider = 'gemini' | 'together' | 'huggingface' | 'stability';
-
-const PROVIDER_KEY = 'IMAGE_GEN_PROVIDER';
-const API_KEY_STORE = 'IMAGE_GEN_KEY';
 
 export const PROVIDER_LABELS: Record<ImageProvider, string> = {
   gemini:      '✨ Google Gemini',
@@ -34,23 +32,23 @@ export const PROVIDER_LINK: Record<ImageProvider, string> = {
 };
 
 export const getImageProvider = (): ImageProvider => {
-  const stored = localStorage.getItem(PROVIDER_KEY) as ImageProvider;
+  const stored = localStorage.getItem(IMAGE_PROVIDER_STORE) as ImageProvider;
   const valid: ImageProvider[] = ['gemini', 'together', 'huggingface', 'stability'];
   return valid.includes(stored) ? stored : 'gemini';
 };
 
 export const getImageProviderKey = (): string =>
-  localStorage.getItem(API_KEY_STORE) || '';
+  localStorage.getItem(IMAGE_API_KEY_STORE) || '';
 
 export const setImageProvider = (p: ImageProvider) =>
-  localStorage.setItem(PROVIDER_KEY, p);
+  localStorage.setItem(IMAGE_PROVIDER_STORE, p);
 
 export const setImageProviderKey = (k: string) =>
-  localStorage.setItem(API_KEY_STORE, k);
+  localStorage.setItem(IMAGE_API_KEY_STORE, k);
 
 export const clearImageProvider = () => {
-  localStorage.removeItem(PROVIDER_KEY);
-  localStorage.removeItem(API_KEY_STORE);
+  localStorage.removeItem(IMAGE_PROVIDER_STORE);
+  localStorage.removeItem(IMAGE_API_KEY_STORE);
 };
 
 export const isImageProviderReady = (): boolean =>

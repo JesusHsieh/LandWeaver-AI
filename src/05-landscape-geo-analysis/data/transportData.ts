@@ -4,6 +4,8 @@
  * Overpass 鏡像三組輪流嘗試，避免單點 504 / 429
  */
 
+import { fetchOverpassJson } from '../utils/fetchOverpass';
+
 // ── 台北捷運（站點資料 / fallback）───────────────────────────────────────────
 
 export interface MrtLine {
@@ -144,45 +146,12 @@ export const KAOHSIUNG_MRT_STATIONS: SimpleStation[] = [
   { id: 'O14',  name: '大寮',     coords: [120.3838, 22.6008] },
 ];
 
-// ── Overpass 多鏡像 + 重試邏輯 ───────────────────────────────────────────────
+// ── Overpass 交通查詢設定 ─────────────────────────────────────────────────────
 
-const OVERPASS_MIRRORS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.openstreetmap.fr/api/interpreter',
-];
+const TRANSPORT_OVERPASS_TIMEOUT_MS = 45_000;
 
-/**
- * 對多個 Overpass 鏡像依序嘗試，直到有一個成功。
- * 每個鏡像嘗試一次，失敗立即換下一個（含 5s timeout 防阻塞）。
- */
-async function fetchOverpass(query: string, label: string): Promise<any> {
-  for (let i = 0; i < OVERPASS_MIRRORS.length; i++) {
-    const mirror = OVERPASS_MIRRORS[i];
-    try {
-      const controller = new AbortController();
-      // 45-second hard timeout per mirror attempt
-      const timer = setTimeout(() => controller.abort(), 45_000);
-      const res = await fetch(mirror, {
-        method: 'POST',
-        body: 'data=' + encodeURIComponent(query),
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (i > 0) console.log(`[OSM] ${label}: 使用備用鏡像 #${i + 1}`);
-      return data;
-    } catch (e) {
-      console.warn(`[OSM] ${label} 鏡像 ${i + 1}/${OVERPASS_MIRRORS.length} 失敗:`, (e as Error).message);
-      if (i < OVERPASS_MIRRORS.length - 1) {
-        // Brief pause before trying next mirror
-        await new Promise(r => setTimeout(r, 800));
-      }
-    }
-  }
-  throw new Error(`所有 Overpass 鏡像均失敗 (${label})`);
-}
+const fetchTransportOverpass = (query: string, label: string) =>
+  fetchOverpassJson<any>(query, { label, timeoutMs: TRANSPORT_OVERPASS_TIMEOUT_MS });
 
 // ── MrtWayGroup 介面 ──────────────────────────────────────────────────────────
 
@@ -258,7 +227,7 @@ export async function loadMrtWayGeometry(): Promise<MrtWayGroup[]> {
 );
 way(r)["railway"];out geom tags;`;
   try {
-    const data = await fetchOverpass(query, 'MRT');
+    const data = await fetchTransportOverpass(query, 'MRT');
     const colorMap = new Map<string, [number, number][][]>();
     const seen = new Set<number>(); // way ID 去重，雙向 relation 同一條 way 只畫一次
 
@@ -294,7 +263,7 @@ export async function loadThsrWayGeometry(): Promise<[number, number][][]> {
   // relation(9825284) = 高鐵603 全線南港→左營，way members 即為完整路軌 segments
   const query = `[out:json][timeout:60];relation(9825284);way(r)["railway"="rail"];out geom;`;
   try {
-    const data = await fetchOverpass(query, 'THSR');
+    const data = await fetchTransportOverpass(query, 'THSR');
     const segs = (data.elements as any[])
       .filter(el => el.type === 'way' && el.geometry)
       .map(el =>
@@ -323,7 +292,7 @@ async function loadOsmWays(
 ): Promise<[number, number][][]> {
   const query = `[out:json][timeout:${timeout}];way["railway"~"${railwayTag}"]["service"!~"siding|yard|crossover"](${bbox});out geom;`;
   try {
-    const data = await fetchOverpass(query, label);
+    const data = await fetchTransportOverpass(query, label);
     const segs = (data.elements as any[])
       .filter(el => el.type === 'way' && el.geometry)
       .map(el =>
@@ -347,7 +316,7 @@ export async function loadTRAWayGeometry(): Promise<[number, number][][]> {
   // 明確排除 highspeed=yes（台灣高鐵路軌），避免與 THSR 圖層重疊
   const query = `[out:json][timeout:45];way["railway"="rail"]["highspeed"!="yes"]["service"!~"siding|yard|crossover"](21.9,119.9,25.4,122.0);out geom;`;
   try {
-    const data = await fetchOverpass(query, 'TRA');
+    const data = await fetchTransportOverpass(query, 'TRA');
     const segs = (data.elements as any[])
       .filter(el => el.type === 'way' && el.geometry)
       .map(el =>
@@ -370,7 +339,7 @@ export async function loadTRAWayGeometry(): Promise<[number, number][][]> {
 export async function loadTaoyuanMrtGeometry(): Promise<[number, number][][]> {
   const query = `[out:json][timeout:45];relation(2108764);way(r)["railway"];out geom;`;
   try {
-    const data = await fetchOverpass(query, '桃捷');
+    const data = await fetchTransportOverpass(query, '桃捷');
     const segs = (data.elements as any[])
       .filter(el => el.type === 'way' && el.geometry)
       .map(el => (el.geometry as {lat:number;lon:number}[]).map(nd => [nd.lon, nd.lat] as [number,number]))
@@ -388,7 +357,7 @@ export async function loadTaoyuanMrtGeometry(): Promise<[number, number][][]> {
 export async function loadTaichungMrtGeometry(): Promise<[number, number][][]> {
   const query = `[out:json][timeout:45];(relation(11330355);relation(11330356););way(r)["railway"];out geom;`;
   try {
-    const data = await fetchOverpass(query, '中捷');
+    const data = await fetchTransportOverpass(query, '中捷');
     const seen = new Set<number>();
     const segs = (data.elements as any[])
       .filter(el => el.type === 'way' && el.geometry && !seen.has(el.id) && seen.add(el.id))
@@ -424,7 +393,7 @@ out geom tags;`;
   };
 
   try {
-    const data = await fetchOverpass(query, '高捷');
+    const data = await fetchTransportOverpass(query, '高捷');
     const colorMap = new Map<string, [number, number][][]>();
     const seen = new Set<number>();
 

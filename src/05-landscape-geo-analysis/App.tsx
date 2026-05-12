@@ -7,6 +7,22 @@ import { GISService } from './services/gisService';
 import { fetchLandscapeStrategy, StrategyResult } from './services/strategyService';
 import { format } from 'date-fns';
 
+function applySolarForTime(
+  micro: MicroClimateData,
+  lat: number,
+  lng: number,
+  time: Date,
+): MicroClimateData {
+  const sunPos = GISService.calculateSolarPosition(lat, lng, time);
+  const shadowCoverage = Math.max(0, Math.min(100, 90 - sunPos.altitude * 1.8));
+  return {
+    ...micro,
+    solarAzimuth:  sunPos.azimuth,
+    solarAltitude: sunPos.altitude,
+    shadowCoverage,
+  };
+}
+
 export default function App() {
   const [settings, setSettings] = useState<MapSettings>(INITIAL_SETTINGS);
   const [microData, setMicroData] = useState<MicroClimateData | null>(null);
@@ -16,30 +32,57 @@ export default function App() {
   const [strategyError, setStrategyError] = useState<string | null>(null);
   const [strategyTrigger, setStrategyTrigger] = useState(0);
   const strategyFetchingRef = useRef(false);
+  const dataAbortRef = useRef<AbortController | null>(null);
+  const dataGenerationRef = useRef(0);
+  const currentTimeRef = useRef(settings.currentTime);
   // Incremented every time the analysis point changes, so an in-flight fetch
   // from the previous point can detect it has become stale and discard its result.
   const strategyGenerationRef = useRef(0);
 
+  useEffect(() => {
+    currentTimeRef.current = settings.currentTime;
+  }, [settings.currentTime]);
+
   // Effect 1：點選新基地 → 完整 API 呼叫（weather / EPA / PVGIS / elevation）
   // 不依賴 currentTime，避免時間軸拖動重打所有 API
   useEffect(() => {
-    if (!settings.analysisPoint) return;
-    let cancelled = false;
+    dataAbortRef.current?.abort();
+    if (!settings.analysisPoint) {
+      setMicroData(null);
+      setLandscapeData(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    dataAbortRef.current = controller;
+    const myGeneration = ++dataGenerationRef.current;
     const { lat, lng } = settings.analysisPoint!;
+
+    setMicroData(null);
+    setLandscapeData(null);
+
     // 立即啟動 zone+town 查詢（與氣象/日照並行，消除串接等待）
     GISService.prefetchZone(lat, lng);
     (async () => {
-      const micro = await GISService.getMicroClimateData(
-        lat, lng,
-        settings.currentTime,
-      );
-      if (cancelled) return;
-      setMicroData(micro);
-      const land = await GISService.getLandscapeDecisionData(lat, lng, micro);
-      if (cancelled) return;
-      setLandscapeData(land);
+      try {
+        const micro = await GISService.getMicroClimateData(
+          lat, lng,
+          settings.currentTime,
+          controller.signal,
+        );
+        if (controller.signal.aborted || dataGenerationRef.current !== myGeneration) return;
+        const currentMicro = applySolarForTime(micro, lat, lng, currentTimeRef.current);
+        setMicroData(currentMicro);
+
+        const land = await GISService.getLandscapeDecisionData(lat, lng, currentMicro);
+        if (controller.signal.aborted || dataGenerationRef.current !== myGeneration) return;
+        setLandscapeData(land);
+      } catch (err) {
+        if (controller.signal.aborted || dataGenerationRef.current !== myGeneration) return;
+        console.warn('[GIS] 分析資料載入失敗:', err);
+      }
     })();
-    return () => { cancelled = true; };
+    return () => { controller.abort(); };
   }, [settings.analysisPoint]); // ← 不含 currentTime，避免時間軸拖動重打 API
 
   // Effect 2b：景觀策略開關 → 觸發 Gemini AI 評估
@@ -74,20 +117,10 @@ export default function App() {
 
   // Effect 2：時間軸改變 → 僅本地重算太陽方位（無 API 呼叫）
   useEffect(() => {
-    if (!settings.analysisPoint || !microData) return;
-    const sunPos = GISService.calculateSolarPosition(
-      settings.analysisPoint.lat,
-      settings.analysisPoint.lng,
-      settings.currentTime,
-    );
-    const shadowCoverage = Math.max(0, Math.min(100, 90 - sunPos.altitude * 1.8));
-    setMicroData(prev => prev ? {
-      ...prev,
-      solarAzimuth:  sunPos.azimuth,
-      solarAltitude: sunPos.altitude,
-      shadowCoverage,
-    } : null);
-  }, [settings.currentTime, settings.analysisPoint]);
+    if (!settings.analysisPoint) return;
+    const { lat, lng } = settings.analysisPoint;
+    setMicroData(prev => prev ? applySolarForTime(prev, lat, lng, settings.currentTime) : null);
+  }, [settings.currentTime]);
 
   const updateSetting = (key: keyof MapSettings, value: unknown) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -108,6 +141,15 @@ export default function App() {
     updateSetting('currentTime', d);
   };
 
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const [year, month, day] = e.target.value.split('-').map(Number);
+    if (!year || !month || !day) return;
+    const d = new Date(settings.currentTime);
+    d.setFullYear(year, month - 1, day);
+    updateSetting('currentTime', d);
+  };
+
+  const dateValue = format(settings.currentTime, 'yyyy-MM-dd');
   const sliderPct = ((settings.currentTime.getHours() - 6) / 12) * 100;
 
   return (
@@ -284,6 +326,20 @@ export default function App() {
         >
           {format(settings.currentTime, 'HH:mm')}
         </span>
+        <input
+          type="date"
+          aria-label="調整日照日期"
+          value={dateValue}
+          onChange={handleDateChange}
+          className="font-mono text-[11px] shrink-0 px-2 py-1 rounded"
+          style={{
+            width: '132px',
+            color: '#C8C8C8',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            colorScheme: 'dark',
+          }}
+        />
         <span className="text-[10px] font-mono shrink-0 hidden md:block" style={{ color: '#555' }}>
           {format(settings.currentTime, 'MM/dd')} · {
             ['冬至','冬至','春分','春分','春分','夏至','夏至','夏至','秋分','秋分','秋分','冬至']

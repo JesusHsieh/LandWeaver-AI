@@ -94,6 +94,7 @@ LandWeaver-AI/
 │   │       └── PhaseSection.tsx          # Phase 標頭 + 卡片排列
 │   ├── shared/
 │   │   ├── styles/global.css             # 全域 Tailwind v4 + Design Tokens
+│   │   ├── apiKeyService.ts              # Gemini API Key 管理（localStorage → env fallback）
 │   │   ├── LandWeaverHeader.tsx          # re-export shim
 │   │   └── ApiKeyManager.tsx             # API Key 管理 UI
 │   ├── app-shell/
@@ -123,7 +124,7 @@ LandWeaver-AI/
 │   │   │   ├── Sidebar/                  # 圖層控制側欄（blocks / ui 拆分）
 │   │   │   ├── RightPanel.tsx            # 即時數據面板 + AI 決策輸出
 │   │   │   └── TransportCesiumLayer.tsx  # 交通動態圖層（facade）
-│   │   ├── utils/                        # fetchOverpass / fetchJson / settingsGroups / geo
+│   │   ├── utils/                        # fetchOverpass（hedging）/ withTimeout / fetchJson / geo
 │   │   └── data/transportData.ts         # 台灣六大捷運 + 高鐵 + 台鐵路線資料
 │   └── 06-taipei-greenery-calc/          # Module 06 · 綠化法規計算機
 │       ├── App.tsx                       # 主介面、城市切換（台北市 / 新北市）
@@ -301,6 +302,19 @@ LandWeaver-AI/
   - pass/fail 旗標統一由 calculator 產生，section 不再重算
   - `Article7` / `NtArticle8` 改為 grouped props（`trees` / `ground` / `state` / `results`）
   - `types.ts` 新增 `TaipeiGreeneryInput` / grouped prop 介面，型別覆蓋率顯著提升
+
+### v8.0 — Module 05 功能完整化 + 效能精煉
+- **右側資訊面板獨立** (`RightPanel.tsx`)：氣象 / 日照 / 地形 / 土壤 / 水文 / 都市干擾 / 容積率 / AI 植栽 / AI 策略診斷 / 匯出按鈕 / 系統狀態，全數封裝於獨立元件
+- **報告匯出** (`exportService.ts`)：純函式架構，支援 `.md` / `.txt` / PDF（瀏覽器列印對話框）三種格式，9 個資料章節含 Markdown 表格
+- **AI 景觀策略服務** (`strategyService.ts`)：乾淨提取為獨立模組；使用 `gemini-2.0-flash`，結構化 JSON prompt，回傳場址診斷 × 3 / 綜合結論 / 行動建議 × 4
+- **TDX 交通服務完整化** (`tdxService.ts`)：Token OIDC 快取（60s buffer）、高鐵 / 台鐵時刻表位置線性內插、六大捷運系統 LiveBoard，全型別定義
+- **`shared/apiKeyService.ts`**：集中管理 Gemini API Key（localStorage → env fallback），解除 `strategyService` 對 `imageGenerationService` 的語意不當依賴
+- **`fetchOverpass.ts` Hedging 模式**：新增 `hedgeRequests: true` 選項，三個 Overpass 鏡像以 `hedgeDelayMs` 交錯同時發出，第一個回應即解決；`usePoiLayer` 已啟用，POI 載入體感顯著加速
+- **`utils/withTimeout.ts` 統一提取**：消除 4 個 API client 的重複 `withTimeout` 實作，共用 `AbortSignal.timeout + AbortSignal.any` polyfill
+- **`gisService.ts` In-Flight 去重 + LRU Cache**：同一座標的第二次點擊直接命中 Promise 快取，不重複打 NLSC API；LRU 上限 60 條目，`prefetchZone()` 與氣象請求並行消除串接延遲
+- **`nlscClient.ts` 像素加權投票**：LUIMAP 分區偵測改為 9×9px 中心加權 × 顏色距離倒數投票，顯著降低邊界跨區誤判率
+- **日期選擇器**：底部工具列新增日期欄位，可模擬任意日期（非僅今日）的太陽高度角與日照路徑，夏至冬至一鍵切換
+- **Vercel Edge Proxy 完整化** (`api/proxy/[...path].ts`)：12 路 API 全數納入（NLSC/CGS/WRA/SWCB/MOENV/NCDR/PVGIS/Open-Elevation），含 tile `s-maxage=3600` CDN 快取、OPTIONS preflight、上游 CORS 標頭覆寫
 
 ---
 

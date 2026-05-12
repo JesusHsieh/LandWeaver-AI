@@ -77,8 +77,6 @@ const StatusBadge = ({
   </span>
 );
 
-const MONTHS = ['1','2','3','4','5','6','7','8','9','10','11','12'];
-
 const windDir = (deg: number) => {
   const d = ['N','NE','E','SE','S','SW','W','NW'];
   return d[Math.round(deg / 45) % 8];
@@ -195,13 +193,13 @@ export const RightPanel: React.FC<RightPanelProps> = ({
               <IrradianceChart data={data.monthlyIrradiance} />
             ) : (
               <div className="flex items-end gap-[2px]" style={{ height: '48px' }}>
-                {MONTHS.map((_, i) => (
+                {MONTH_LABELS.map((_, i) => (
                   <div key={i} className="flex-1 rounded-t-[1px]" style={{ height: '20%', background: '#2A2A2A' }} />
                 ))}
               </div>
             )}
             <div className="flex justify-between mt-1 mb-2">
-              {['1','','','','','6','','','','','','12'].map((m, i) => (
+              {MONTH_LABELS.map((label, i) => ([0, 5, 11].includes(i) ? label.replace('月', '') : '')).map((m, i) => (
                 <span key={i} className="text-[8px]" style={{ color: '#555', width: '8.3%', textAlign: 'center' }}>{m}</span>
               ))}
             </div>

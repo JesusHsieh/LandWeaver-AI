@@ -4,6 +4,25 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import cesium from 'vite-plugin-cesium';
 
+const TILE_CACHE_CONTROL = 'public, max-age=3600';
+
+function isTileRequest(url = '') {
+  const lower = url.toLowerCase();
+  return (
+    lower.includes('request=getmap') ||
+    lower.includes('request=gettile') ||
+    lower.includes('/googlemapscompatible/')
+  );
+}
+
+function addTileCacheHeaders(proxy: any) {
+  proxy.on('proxyRes', (proxyRes: any, req: any) => {
+    if (isTileRequest(req.url)) {
+      proxyRes.headers['cache-control'] = TILE_CACHE_CONTROL;
+    }
+  });
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
@@ -25,6 +44,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/nlsc-wmts/, '/wmts'),
           secure: true,
+          configure: addTileCacheHeaders,
         },
         // NLSC WMS API（土地使用分區 / 都市計畫色塊）
         '/nlsc-wms': {
@@ -32,14 +52,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/nlsc-wms/, '/wms'),
           secure: true,
-          configure: (proxy) => {
-            proxy.on('proxyRes', (proxyRes, req) => {
-              // 只快取 GetMap tile 回應（分區色塊圖磚），避免快取 GetCapabilities
-              if (req.url?.includes('REQUEST=GetMap') || req.url?.includes('REQUEST=getmap')) {
-                proxyRes.headers['cache-control'] = 'public, max-age=3600'; // 1 小時快取
-              }
-            });
-          },
+          configure: addTileCacheHeaders,
         },
         // NLSC REST API（行政區 / 地籍查詢）
         '/nlsc-api': {
@@ -54,6 +67,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/cgs-wms/, ''),
           secure: true,
+          configure: addTileCacheHeaders,
         },
         // 08C 土石流潛勢 水保局 SWCB WMS
         '/swcb-wms': {
@@ -61,6 +75,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/swcb-wms/, ''),
           secure: false,
+          configure: addTileCacheHeaders,
         },
         // 08E 淹水潛勢 水利署 WRA WMS
         '/wra-wms': {
@@ -68,6 +83,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/wra-wms/, ''),
           secure: true,
+          configure: addTileCacheHeaders,
         },
         // 08F 山坡地 / 地質敏感區 水保局 soil WMS
         '/soil-wms': {
@@ -75,6 +91,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/soil-wms/, ''),
           secure: true,
+          configure: addTileCacheHeaders,
         },
         // 08G 飲用水保護區 環境部 MOENV WMS
         '/moenv-wms': {

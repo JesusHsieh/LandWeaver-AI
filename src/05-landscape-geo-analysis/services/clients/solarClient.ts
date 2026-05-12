@@ -2,6 +2,8 @@
 // Solar API client — PVGIS
 // ============================================================
 
+import { withTimeout } from '../../utils/withTimeout';
+
 export interface SolarResult {
   annualIrradiance: number;
   monthlyIrradiance: number[];
@@ -13,11 +15,16 @@ export interface SolarResult {
 // API 3：EU PVGIS — 太陽輻射量資料（免費，無需 Key）
 // 覆蓋台灣全境
 // ============================================================
-export async function fetchPVGISSolar(lat: number, lng: number): Promise<SolarResult> {
+export async function fetchPVGISSolar(
+  lat: number,
+  lng: number,
+  signal?: AbortSignal,
+): Promise<SolarResult> {
   // 透過 Vite proxy /pvgis → https://re.jrc.ec.europa.eu，繞過瀏覽器 CORS 限制
   const res = await fetch(
     `/pvgis/api/v5_2/PVcalc?lat=${lat}&lon=${lng}` +
-    `&peakpower=1&loss=14&outputformat=json&mountingplace=free&optimalangles=1&raddatabase=PVGIS-ERA5`
+    `&peakpower=1&loss=14&outputformat=json&mountingplace=free&optimalangles=1&raddatabase=PVGIS-ERA5`,
+    { signal: withTimeout(signal, 8000) }
   );
   if (!res.ok) throw new Error(`PVGIS API 錯誤：${res.status}`);
   const json = await res.json();

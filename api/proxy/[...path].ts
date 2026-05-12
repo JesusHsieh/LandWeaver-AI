@@ -21,6 +21,21 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+const TILE_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
+
+function getSearchParamLower(targetUrl: URL, name: string) {
+  for (const [key, value] of targetUrl.searchParams) {
+    if (key.toLowerCase() === name) return value.toLowerCase();
+  }
+  return null;
+}
+
+function isTileRequest(routeKey: string, targetUrl: URL) {
+  const request = getSearchParamLower(targetUrl, 'request');
+  if (request === 'getmap' || request === 'gettile') return true;
+  return routeKey === 'nlsc-wmts' && targetUrl.pathname.toLowerCase().includes('/googlemapscompatible/');
+}
+
 export default async function handler(request: Request): Promise<Response> {
   // Handle preflight
   if (request.method === 'OPTIONS') {
@@ -71,6 +86,10 @@ export default async function handler(request: Request): Promise<Response> {
       }
     });
     Object.entries(CORS_HEADERS).forEach(([k, v]) => respHeaders.set(k, v));
+    if (isTileRequest(routeKey, targetUrl)) {
+      respHeaders.set('Cache-Control', TILE_CACHE_CONTROL);
+      respHeaders.delete('Pragma');
+    }
 
     return new Response(upstream.body, {
       status: upstream.status,

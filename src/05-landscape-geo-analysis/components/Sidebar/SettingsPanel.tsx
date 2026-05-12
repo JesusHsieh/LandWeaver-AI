@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { MapSettings } from '../../types';
+import { IMAGE_API_KEY_STORE } from '../../../shared/apiKeyService';
 
 const API_FIELDS = [
   {
-    key: 'IMAGE_GEN_KEY',
+    key: IMAGE_API_KEY_STORE,
     label: 'Google Gemini API Key',
     sub: 'AI 景觀策略診斷 · gemini-2.0-flash',
     placeholder: 'AIzaSy...',

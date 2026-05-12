@@ -1,10 +1,20 @@
 import { useMemo } from 'react';
 import {
   OpenStreetMapImageryProvider,
+  Rectangle,
   UrlTemplateImageryProvider,
   WebMapTileServiceImageryProvider,
   WebMapServiceImageryProvider,
 } from 'cesium';
+
+const TAIWAN_WMS_RECTANGLE = Rectangle.fromDegrees(118.0, 21.0, 123.5, 26.5);
+const WMS_OVERLAY_OPTIONS = {
+  parameters: { transparent: 'true', format: 'image/png', tiled: 'true' },
+  rectangle: TAIWAN_WMS_RECTANGLE,
+  tileWidth: 512,
+  tileHeight: 512,
+  enablePickFeatures: false,
+};
 
 export function useImageryProviders() {
   const osmOrigProvider = useMemo(() => new OpenStreetMapImageryProvider({
@@ -79,11 +89,9 @@ export function useImageryProviders() {
   const nlscUrbanPlanProvider = useMemo(() => new WebMapServiceImageryProvider({
     url: '/nlsc-wms',
     layers: 'LUIMAP',
-    parameters: { transparent: 'true', format: 'image/png' },
+    ...WMS_OVERLAY_OPTIONS,
     minimumLevel: 9,
     maximumLevel: 14,
-    tileWidth: 512,
-    tileHeight: 512,
     credit: '內政部 NLSC · 都市計畫分區 LUIMAP',
   }), []);
 
@@ -91,7 +99,7 @@ export function useImageryProviders() {
   const cgsLiquefactionProvider = useMemo(() => new WebMapServiceImageryProvider({
     url: '/cgs-wms/mapguide/mapagent/mapagent.fcgi',
     layers: 'WMS/Geomap_Envi_Soil_liquefatcion_2021',
-    parameters: { transparent: 'true', format: 'image/png' },
+    ...WMS_OVERLAY_OPTIONS,
     minimumLevel: 7,
     maximumLevel: 14,
     credit: '地質調查及礦業管理中心 · 土壤液化潛勢 2021',
@@ -101,7 +109,7 @@ export function useImageryProviders() {
   const cgsFaultProvider = useMemo(() => new WebMapServiceImageryProvider({
     url: '/cgs-wms/mapguide/mapagent/mapagent.fcgi',
     layers: 'WMS/Sensitive_area_fault',
-    parameters: { transparent: 'true', format: 'image/png' },
+    ...WMS_OVERLAY_OPTIONS,
     minimumLevel: 7,
     maximumLevel: 14,
     credit: '地質調查及礦業管理中心 · 地質敏感區（活動斷層）',
@@ -110,18 +118,18 @@ export function useImageryProviders() {
   // 08E 淹水潛勢
   const wraFloodProvider = useMemo(() => new WebMapServiceImageryProvider({
     url: '/wra-wms/arcgis/services/WMS/GIC_WMS/MapServer/WMSServer',
-    layers: '0,1',
-    parameters: { transparent: 'true', format: 'image/png' },
+    layers: '114nfp_bareland,114nfp_deep',
+    ...WMS_OVERLAY_OPTIONS,
     minimumLevel: 7,
     maximumLevel: 14,
-    credit: '水利署 WRA · 淹水潛勢圖 114年',
+    credit: '水利署 WRA · 淹水潛勢圖 114年（裸地/深度）',
   }), []);
 
   // 08C 土石流/崩塌地
   const cgsDebrisProvider = useMemo(() => new WebMapServiceImageryProvider({
     url: '/cgs-wms/mapguide/mapagent/mapagent.fcgi',
     layers: 'WMS/Geomap_Envi_DebrisSlide_2013',
-    parameters: { transparent: 'true', format: 'image/png' },
+    ...WMS_OVERLAY_OPTIONS,
     minimumLevel: 7,
     maximumLevel: 14,
     credit: '地質調查及礦業管理中心 · 崩塌地 DebrisSlide 2013',
@@ -131,7 +139,7 @@ export function useImageryProviders() {
   const cgsSlopeProvider = useMemo(() => new WebMapServiceImageryProvider({
     url: '/cgs-wms/mapguide/mapagent/mapagent.fcgi',
     layers: 'WMS/Sensitive_area_landslide',
-    parameters: { transparent: 'true', format: 'image/png' },
+    ...WMS_OVERLAY_OPTIONS,
     minimumLevel: 7,
     maximumLevel: 14,
     credit: '地質調查及礦業管理中心 · 地質敏感區（山崩與地滑）',

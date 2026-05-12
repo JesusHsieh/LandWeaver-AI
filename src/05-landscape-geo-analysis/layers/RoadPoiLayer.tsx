@@ -1,10 +1,28 @@
 import React from 'react';
 import { Entity, PointGraphics, PolylineGraphics, LabelGraphics } from 'resium';
-import { Cartesian3, Cartesian2, Color, LabelStyle } from 'cesium';
+import { ArcType, Cartesian3, Cartesian2, Color, LabelStyle } from 'cesium';
 import { MapSettings } from '../types';
 import { RoadFeature, RoadKind } from '../hooks/useRoadLayer';
 import { PoiFeature, PoiCat, PoiStats } from '../hooks/usePoiLayer';
 import { haversineM } from '../utils/geo';
+
+const POI_RENDER_LIMIT = 180;
+const POI_LABEL_LIMIT = 40;
+
+const POI_CAT_COLOR: Record<PoiCat, string> = {
+  school: '#4FC3F7', park: '#81C784', market: '#FFB74D',
+  medical: '#F48FB1', bus: '#CE93D8', public: '#80CBC4',
+};
+
+const POI_CAT_EMOJI: Record<PoiCat, string> = {
+  school: '🎓', park: '🌿', market: '🛒',
+  medical: '🏥', bus: '🚌', public: '🏛',
+};
+
+type RenderPoi = PoiFeature & {
+  distanceM: number;
+  showLabel: boolean;
+};
 
 interface RoadPoiLayerProps {
   settings: MapSettings;
@@ -19,6 +37,26 @@ export const RoadPoiLayer: React.FC<RoadPoiLayerProps> = ({
   poiFeatures,
   poiStats,
 }) => {
+  const poiRenderFeatures = React.useMemo<RenderPoi[]>(() => {
+    if (!settings.showPoiLayer || !settings.analysisPoint) return [];
+    const { lat, lng } = settings.analysisPoint;
+    const sorted = poiFeatures
+      .map(poi => ({
+        ...poi,
+        distanceM: haversineM(lat, lng, poi.lat, poi.lng),
+        showLabel: false,
+      }))
+      .sort((a, b) => a.distanceM - b.distanceM)
+      .slice(0, POI_RENDER_LIMIT);
+
+    let labelCount = 0;
+    return sorted.map(poi => {
+      const showLabel = !!poi.name && poi.distanceM <= 500 && labelCount < POI_LABEL_LIMIT;
+      if (showLabel) labelCount += 1;
+      return { ...poi, showLabel };
+    });
+  }, [settings.showPoiLayer, settings.analysisPoint?.lat, settings.analysisPoint?.lng, poiFeatures]);
+
   if (!settings.analysisPoint) return null;
 
   return (
@@ -40,7 +78,7 @@ export const RoadPoiLayer: React.FC<RoadPoiLayerProps> = ({
               width={roadWidth[road.kind]}
               material={Color.fromCssColorString(roadColor[road.kind]).withAlpha(0.75)}
               clampToGround
-              arcType={0}
+              arcType={ArcType.GEODESIC}
             />
           </Entity>
         );
@@ -75,30 +113,22 @@ export const RoadPoiLayer: React.FC<RoadPoiLayerProps> = ({
         })}
 
       {/* ── 生活機能 POI ── */}
-      {settings.showPoiLayer && poiFeatures.map((poi, i) => {
-        const catColor: Record<PoiCat, string> = {
-          school: '#4FC3F7', park: '#81C784', market: '#FFB74D',
-          medical: '#F48FB1', bus: '#CE93D8', public: '#80CBC4',
-        };
-        const catEmoji: Record<PoiCat, string> = {
-          school: '🎓', park: '🌿', market: '🛒',
-          medical: '🏥', bus: '🚌', public: '🏛',
-        };
-        const within500 = haversineM(settings.analysisPoint!.lat, settings.analysisPoint!.lng, poi.lat, poi.lng) <= 500;
+      {settings.showPoiLayer && poiRenderFeatures.map((poi, i) => {
+        const within500 = poi.distanceM <= 500;
         return (
           <Entity key={`poi-${i}`} position={Cartesian3.fromDegrees(poi.lng, poi.lat, 5)}>
             <PointGraphics
               pixelSize={within500 ? 8 : 5}
-              color={Color.fromCssColorString(catColor[poi.cat]).withAlpha(within500 ? 0.9 : 0.5)}
+              color={Color.fromCssColorString(POI_CAT_COLOR[poi.cat]).withAlpha(within500 ? 0.9 : 0.5)}
               outlineColor={Color.fromBytes(0, 0, 0, 160)}
               outlineWidth={1}
               disableDepthTestDistance={Number.POSITIVE_INFINITY}
             />
-            {poi.name && within500 && (
+            {poi.showLabel && (
               <LabelGraphics
-                text={`${catEmoji[poi.cat]} ${poi.name}`}
+                text={`${POI_CAT_EMOJI[poi.cat]} ${poi.name}`}
                 font="10px sans-serif"
-                fillColor={Color.fromCssColorString(catColor[poi.cat])}
+                fillColor={Color.fromCssColorString(POI_CAT_COLOR[poi.cat])}
                 outlineColor={Color.fromBytes(0, 0, 0, 220)}
                 outlineWidth={2}
                 style={LabelStyle.FILL_AND_OUTLINE}
@@ -115,13 +145,9 @@ export const RoadPoiLayer: React.FC<RoadPoiLayerProps> = ({
       })}
       {/* 500m 生活圈統計標籤 */}
       {settings.showPoiLayer && poiStats && (() => {
-        const catEmoji: Record<PoiCat, string> = {
-          school: '🎓', park: '🌿', market: '🛒',
-          medical: '🏥', bus: '🚌', public: '🏛',
-        };
         const lines = (Object.keys(poiStats) as PoiCat[])
           .filter(k => poiStats[k] > 0)
-          .map(k => `${catEmoji[k]}${poiStats[k]}`)
+          .map(k => `${POI_CAT_EMOJI[k]}${poiStats[k]}`)
           .join('  ');
         return (
           <Entity position={Cartesian3.fromDegrees(
