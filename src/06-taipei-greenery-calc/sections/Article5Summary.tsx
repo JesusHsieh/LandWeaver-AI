@@ -7,6 +7,7 @@ type Props = Pick<GreeneryCalc,
   | 'coverRate' | 'volumeRate' | 'std'
   | 'actualCarbon' | 'reqCarbon' | 'alpha' | 'A_prime'
   | 'ecoLayerVal' | 'carbonLargeArea' | 'carbonSmallArea' | 'carbonPalmArea'
+  | 'coverPass' | 'volumePass' | 'carbonPass'
 >;
 
 export function Article5Summary({
@@ -14,6 +15,7 @@ export function Article5Summary({
   coverRate, volumeRate, std,
   actualCarbon, reqCarbon, alpha, A_prime,
   ecoLayerVal, carbonLargeArea, carbonSmallArea, carbonPalmArea,
+  coverPass, volumePass, carbonPass,
 }: Props) {
 
   const coolRows = [
@@ -40,9 +42,9 @@ export function Article5Summary({
     { label: '草花/地被/草皮/薄層/壁掛/其他',     gi: CARBON.grass,      area: allOther        },
   ];
 
-  const coverOk  = coverRate  >= std.cover;
-  const volumeOk = volumeRate >= std.volume;
-  const carbonOk = A_prime > 0 && actualCarbon >= reqCarbon;
+  const coverOk  = coverPass  === true;
+  const volumeOk = volumePass === true;
+  const carbonOk = carbonPass === true;
 
   return (
     <>

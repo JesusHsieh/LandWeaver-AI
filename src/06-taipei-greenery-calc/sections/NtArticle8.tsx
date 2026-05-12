@@ -1,57 +1,41 @@
 import { n } from '../utils';
 import { NT_TREE_COVER } from '../hooks/useNewTaipeiCalc';
-import type { NewTaipeiCalc } from '../hooks/useNewTaipeiCalc';
+import type { NtStateProps, NtResultProps } from '../types';
 import { cardCls, hCls, inputCls, labelCls } from '../styles';
 
-type Props = Pick<NewTaipeiCalc,
-  | 'openSpace' | 'setOpenSpace' | 'greenArea' | 'setGreenArea'
-  | 'nonGreenable43' | 'setNonGreenable43'
-  | 'isDesignReview' | 'setIsDesignReview'
-  | 'roofArea44' | 'setRoofArea44'
-  | 'roofPlantArea44' | 'setRoofPlantArea44'
-  | 'roofSolarArea44' | 'setRoofSolarArea44'
-  | 'treeSmall' | 'setTreeSmall' | 'treeMedium' | 'setTreeMedium' | 'treeLarge' | 'setTreeLarge'
-  | 'shrubArea' | 'setShrubArea'
-  | 'groundCoverArea' | 'setGroundCoverArea'
-  | 'grassBrickArea' | 'setGrassBrickArea'
-  | 'pondArea' | 'setPondArea'
-  | 'vineArea' | 'setVineArea'
-  | 'roofGreenArea' | 'setRoofGreenArea'
-  | 'includeRoofInCoverage' | 'setIncludeRoofInCoverage'
-  | 'os' | 'ga'
-  | 'treeSmallCount' | 'treeMediumCount' | 'treeLargeCount' | 'totalTreeCount' | 'requiredTrees'
-  | 'shrubCover' | 'groundCover' | 'grassBrickCover' | 'pondCover' | 'vineCover' | 'roofCover'
-  | 'totalCover' | 'coverRate'
-  | 'greenableArea43' | 'requiredPlant43' | 'actualPlant43'
-  | 'roofA44' | 'roofPA44' | 'roofSA44' | 'roofGreenEnergy44' | 'roofGreenRate44'
->;
+interface Props {
+  state:   NtStateProps;
+  results: NtResultProps;
+}
 
-export function NtArticle8({
-  openSpace, setOpenSpace, greenArea, setGreenArea,
-  nonGreenable43, setNonGreenable43,
-  isDesignReview, setIsDesignReview,
-  roofArea44, setRoofArea44,
-  roofPlantArea44, setRoofPlantArea44,
-  roofSolarArea44, setRoofSolarArea44,
-  treeSmall, setTreeSmall, treeMedium, setTreeMedium, treeLarge, setTreeLarge,
-  shrubArea, setShrubArea,
-  groundCoverArea, setGroundCoverArea,
-  grassBrickArea, setGrassBrickArea,
-  pondArea, setPondArea,
-  vineArea, setVineArea,
-  roofGreenArea, setRoofGreenArea,
-  includeRoofInCoverage, setIncludeRoofInCoverage,
-  os, ga,
-  treeSmallCount, treeMediumCount, treeLargeCount, totalTreeCount, requiredTrees,
-  shrubCover, groundCover, grassBrickCover, pondCover, vineCover, roofCover,
-  totalCover, coverRate,
-  greenableArea43, requiredPlant43, actualPlant43,
-  roofA44, roofPA44, roofSA44, roofGreenEnergy44, roofGreenRate44,
-}: Props) {
+export function NtArticle8({ state, results }: Props) {
+  const {
+    openSpace, setOpenSpace, greenArea, setGreenArea,
+    nonGreenable43, setNonGreenable43,
+    isDesignReview, setIsDesignReview,
+    roofArea44, setRoofArea44,
+    roofPlantArea44, setRoofPlantArea44,
+    roofSolarArea44, setRoofSolarArea44,
+    treeSmall, setTreeSmall, treeMedium, setTreeMedium, treeLarge, setTreeLarge,
+    shrubArea, setShrubArea,
+    groundCoverArea, setGroundCoverArea,
+    grassBrickArea, setGrassBrickArea,
+    pondArea, setPondArea,
+    vineArea, setVineArea,
+    roofGreenArea, setRoofGreenArea,
+    includeRoofInCoverage, setIncludeRoofInCoverage,
+  } = state;
+  const {
+    os, ga,
+    treeSmallCount, treeMediumCount, treeLargeCount, totalTreeCount, requiredTrees,
+    shrubCover, groundCover, grassBrickCover, pondCover, vineCover, roofCover,
+    totalCover, coverRate,
+    greenableArea43, requiredPlant43, actualPlant43,
+    roofA44, roofPA44, roofSA44, roofGreenEnergy44, roofGreenRate44,
+    plant43Pass, treePass, roof44Pass,
+  } = results;
 
-  const treeEnough  = ga > 0 ? totalTreeCount >= requiredTrees : null;
-  const plant43Pass = os > 0 ? actualPlant43 >= requiredPlant43 : null;
-  const roof44Pass  = isDesignReview ? (roofA44 > 0 ? roofGreenRate44 >= 50 : null) : null;
+  const treeEnough = treePass;
 
   return (
     <>

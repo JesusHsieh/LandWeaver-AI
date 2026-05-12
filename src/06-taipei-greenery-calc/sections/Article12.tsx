@@ -2,11 +2,11 @@ import type { GreeneryCalc } from '../hooks/useGreeneryCalc';
 import { n } from '../utils';
 import { cardCls, hCls, labelCls } from '../styles';
 
-type Props = Pick<GreeneryCalc, 'pavTotal' | 'setPavTotal' | 'pavPerm' | 'setPavPerm' | 'permeableRate'>;
+type Props = Pick<GreeneryCalc, 'pavTotal' | 'setPavTotal' | 'pavPerm' | 'setPavPerm' | 'permeableRate' | 'permeablePass'>;
 
-export function Article12({ pavTotal, setPavTotal, pavPerm, setPavPerm, permeableRate }: Props) {
+export function Article12({ pavTotal, setPavTotal, pavPerm, setPavPerm, permeableRate, permeablePass }: Props) {
   const hasData = n(pavTotal) > 0;
-  const pass    = permeableRate >= 50;
+  const pass    = permeablePass;
 
   return (
     <div className={cardCls}>

@@ -1,43 +1,33 @@
 import { n } from '../utils';
 import { TREE_AREA } from '../constants';
-import type { GreeneryCalc } from '../hooks/useGreeneryCalc';
+import type { TaipeiTreeProps, TaipeiGroundProps } from '../types';
 import { Tag } from '../components/Tag';
 import { TreeSection } from '../components/TreeSection';
 import { cardCls, hCls, labelCls } from '../styles';
 
-type Props = Pick<GreeneryCalc,
-  | 'hs150L'|'setHs150L'|'hs150M'|'setHs150M'|'hs150S'|'setHs150S'|'hs150P'|'setHs150P'
-  | 'hs120L'|'setHs120L'|'hs120M'|'setHs120M'|'hs120S'|'setHs120S'|'hs120P'|'setHs120P'
-  | 'hs100L'|'setHs100L'|'hs100M'|'setHs100M'|'hs100S'|'setHs100S'|'hs100P'|'setHs100P'
-  | 'ls150L'|'setLs150L'|'ls150M'|'setLs150M'|'ls150S'|'setLs150S'|'ls150P'|'setLs150P'
-  | 'ls120L'|'setLs120L'|'ls120M'|'setLs120M'|'ls120S'|'setLs120S'|'ls120P'|'setLs120P'
-  | 'ls100L'|'setLs100L'|'ls100M'|'setLs100M'|'ls100S'|'setLs100S'|'ls100P'|'setLs100P'
-  | 'ecoLayerArea' | 'setEcoLayerArea'
-  | 'groundShrub'|'setGroundShrub'|'groundGrass'|'setGroundGrass'
-  | 'groundDitch'|'setGroundDitch'|'groundBrick'|'setGroundBrick'
-  | 'groundPond'|'setGroundPond'|'groundWallW'|'setGroundWallW'|'groundWallF'|'setGroundWallF'
-  | 'roadsideSpace'|'setRoadsideSpace'|'rsL'|'setRsL'|'rsM'|'setRsM'|'rsS'|'setRsS'
-  | 'hsArea'|'lsArea'|'groundShrubArea'|'groundOther'
-  | 'grassArea'|'ditchExtra'|'brickArea'|'pondArea'|'wallArea'
-  | 'roadsideTrees'|'roadsideCover'
->;
+interface Props {
+  trees:  TaipeiTreeProps;
+  ground: TaipeiGroundProps;
+}
 
-export function Article7({
-  ecoLayerArea, setEcoLayerArea,
-  hs150L,setHs150L,hs150M,setHs150M,hs150S,setHs150S,hs150P,setHs150P,
-  hs120L,setHs120L,hs120M,setHs120M,hs120S,setHs120S,hs120P,setHs120P,
-  hs100L,setHs100L,hs100M,setHs100M,hs100S,setHs100S,hs100P,setHs100P,
-  ls150L,setLs150L,ls150M,setLs150M,ls150S,setLs150S,ls150P,setLs150P,
-  ls120L,setLs120L,ls120M,setLs120M,ls120S,setLs120S,ls120P,setLs120P,
-  ls100L,setLs100L,ls100M,setLs100M,ls100S,setLs100S,ls100P,setLs100P,
-  groundShrub,setGroundShrub,groundGrass,setGroundGrass,
-  groundDitch,setGroundDitch,groundBrick,setGroundBrick,
-  groundPond,setGroundPond,groundWallW,setGroundWallW,groundWallF,setGroundWallF,
-  roadsideSpace,setRoadsideSpace,rsL,setRsL,rsM,setRsM,rsS,setRsS,
-  hsArea,lsArea,groundShrubArea,groundOther,
-  grassArea,ditchExtra,brickArea,pondArea,wallArea,
-  roadsideTrees,roadsideCover,
-}: Props) {
+export function Article7({ trees, ground }: Props) {
+  const {
+    hs150L,setHs150L,hs150M,setHs150M,hs150S,setHs150S,hs150P,setHs150P,
+    hs120L,setHs120L,hs120M,setHs120M,hs120S,setHs120S,hs120P,setHs120P,
+    hs100L,setHs100L,hs100M,setHs100M,hs100S,setHs100S,hs100P,setHs100P,
+    ls150L,setLs150L,ls150M,setLs150M,ls150S,setLs150S,ls150P,setLs150P,
+    ls120L,setLs120L,ls120M,setLs120M,ls120S,setLs120S,ls120P,setLs120P,
+    ls100L,setLs100L,ls100M,setLs100M,ls100S,setLs100S,ls100P,setLs100P,
+    roadsideSpace,setRoadsideSpace,rsL,setRsL,rsM,setRsM,rsS,setRsS,
+    hsArea,lsArea,roadsideTrees,roadsideCover,
+  } = trees;
+  const {
+    ecoLayerArea, setEcoLayerArea,
+    groundShrub,setGroundShrub,groundGrass,setGroundGrass,
+    groundDitch,setGroundDitch,groundBrick,setGroundBrick,
+    groundPond,setGroundPond,groundWallW,setGroundWallW,groundWallF,setGroundWallF,
+    groundShrubArea,groundOther,grassArea,ditchExtra,brickArea,pondArea,wallArea,
+  } = ground;
   return (
     <div className={cardCls}>
       <h2 className={hCls}>

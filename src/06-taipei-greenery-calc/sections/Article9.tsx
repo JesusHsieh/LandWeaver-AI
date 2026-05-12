@@ -10,13 +10,15 @@ type Props = Pick<GreeneryCalc,
   | 'roofOther' | 'setRoofOther'
   | 'roofHs' | 'roofLs' | 'roofPalm' | 'roofShrubArea' | 'roofGreen'
   | 'greenableRoof' | 'roofRate' | 'roofShrubPct'
+  | 'roofRatePass' | 'roofShrubPass'
 >;
 
 export function Article9({ roofTotal, setRoofTotal, roofNonGreen, setRoofNonGreen,
   roofHsArea, setRoofHsArea, roofLsArea, setRoofLsArea,
   roofPalmArea, setRoofPalmArea, roofShrub, setRoofShrub, roofOther, setRoofOther,
   roofHs, roofLs, roofPalm, roofShrubArea, roofGreen,
-  greenableRoof, roofRate, roofShrubPct }: Props) {
+  greenableRoof, roofRate, roofShrubPct,
+  roofRatePass, roofShrubPass }: Props) {
   return (
     <div className={cardCls}>
       <h2 className={hCls}>
@@ -94,8 +96,8 @@ export function Article9({ roofTotal, setRoofTotal, roofNonGreen, setRoofNonGree
       {n(roofTotal) > 0 && (
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: '屋頂平臺綠覆率（第9條第2項）', val: roofRate,     pass: roofRate >= 50,    detail: `${roofGreen.toFixed(2)} ÷ ${greenableRoof.toFixed(2)} m²　需 ≥ 50%` },
-            { label: '屋頂灌木面積比例（第9條第1項）', val: roofShrubPct, pass: roofShrubPct >= 30, detail: `${roofShrubArea.toFixed(2)} ÷ ${roofGreen.toFixed(2)} m²　需 ≥ 30%` },
+            { label: '屋頂平臺綠覆率（第9條第2項）',   val: roofRate,     pass: roofRatePass,   detail: `${roofGreen.toFixed(2)} ÷ ${greenableRoof.toFixed(2)} m²　需 ≥ 50%` },
+            { label: '屋頂灌木面積比例（第9條第1項）',  val: roofShrubPct, pass: roofShrubPass,  detail: `${roofShrubArea.toFixed(2)} ÷ ${roofGreen.toFixed(2)} m²　需 ≥ 30%` },
           ].map(({ label, val, pass, detail }) => (
             <div key={label} className={`rounded-xl p-4 ${pass ? 'bg-tertiary-container/40' : 'bg-error-container/20'}`}>
               <div className="text-xs text-on-surface-variant mb-2">{label}</div>
