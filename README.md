@@ -6,6 +6,8 @@
 
 🔗 **Live Demo：[land-weaver-ai.vercel.app](https://land-weaver-ai.vercel.app)**
 
+> **⚠️ 線上版為 DEMO 展示**：部分即時地理 API（高程、都市計畫分區）可能因雲端 proxy 限制而使用估算值。若要完整體驗所有功能，請下載 GitHub 專案在 localhost 執行。
+
 ---
 
 ## 🗂 工具模組
