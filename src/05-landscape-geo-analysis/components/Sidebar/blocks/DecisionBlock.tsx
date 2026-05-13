@@ -17,7 +17,7 @@ export const DecisionBlock: React.FC<DecisionBlockProps> = ({ settings, set }) =
     <div className="mt-1 mb-0.5" style={{ height: '1px', background: '#222' }} />
     <LayerRow
       label="景觀／空間策略建議"
-      sub="AI 綜合評估 · 需 Gemini API Key"
+      sub="AI 綜合評估 · 需 API Key"
       active={settings.showLandscapeStrategy}
       onClick={() => set('showLandscapeStrategy', !settings.showLandscapeStrategy)}
       accent="#BCFD49"

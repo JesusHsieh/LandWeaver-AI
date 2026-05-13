@@ -85,7 +85,7 @@ export default function App() {
     return () => { controller.abort(); };
   }, [settings.analysisPoint]); // ← 不含 currentTime，避免時間軸拖動重打 API
 
-  // Effect 2b：景觀策略開關 → 觸發 Gemini AI 評估
+  // Effect 2b：景觀策略開關 → 觸發 AI 評估
   useEffect(() => {
     if (!settings.showLandscapeStrategy || !microData || !landscapeData) return;
     if (strategyData || strategyFetchingRef.current) return;

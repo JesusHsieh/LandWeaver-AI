@@ -2,7 +2,7 @@
 
 **景觀設計 AI 工具集 · Landscape Design AI Suite**
 
-整合 6 個景觀設計 AI 工具，從平面配置、概念圖生成、空間照片合成、3D 模擬，到 GIS 地理分析、植栽決策與法規計算，由 Gemini AI 驅動。
+整合 6 個景觀設計 AI 工具，從平面配置、概念圖生成、空間照片合成、3D 模擬，到 GIS 地理分析、植栽決策與法規計算。
 
 🔗 **Live Demo：[land-weaver-ai.vercel.app](https://land-weaver-ai.vercel.app)**
 
@@ -96,7 +96,7 @@ LandWeaver-AI/
 │   │       └── PhaseSection.tsx          # Phase 標頭 + 卡片排列
 │   ├── shared/
 │   │   ├── styles/global.css             # 全域 Tailwind v4 + Design Tokens
-│   │   ├── apiKeyService.ts              # Gemini API Key 管理（localStorage → env fallback）
+│   │   ├── apiKeyService.ts              # AI API Key 管理（localStorage → env fallback）
 │   │   ├── LandWeaverHeader.tsx          # re-export shim
 │   │   └── ApiKeyManager.tsx             # API Key 管理 UI
 │   ├── app-shell/
@@ -115,7 +115,7 @@ LandWeaver-AI/
 │   │   │   ├── recommendEngine.ts        # 景觀建議 / 植栽推薦邏輯
 │   │   │   ├── zoningTable.ts            # 分區法規查表
 │   │   │   ├── solarCalc.ts              # 太陽位置純計算
-│   │   │   ├── strategyService.ts        # Gemini AI 景觀策略生成
+│   │   │   ├── strategyService.ts        # AI 景觀策略生成
 │   │   │   ├── tdxService.ts             # TDX 交通資料
 │   │   │   └── exportService.ts          # PDF / MD / TXT 報告匯出
 │   │   ├── hooks/                        # 12 個功能 hook（地圖互動/圖層/地形）
@@ -168,7 +168,7 @@ LandWeaver-AI/
 | 捷運 / 高鐵 / 台鐵路線 | 內建靜態資料 | 不需要 | 六大捷運系統 + 高鐵 + 台鐵路線幾何 |
 | 捷運列車動態 | TDX 交通部 | 需要 | LiveBoard 即時班次，無 Key 則停用 |
 | 太陽方位角 / 高度角 | 天文公式 | 不需要 | 即時計算，無需外部 API |
-| AI 場址診斷 + 景觀策略 | **Google Gemini** (`gemini-2.0-flash`) | 需要 | 以真實場址數據生成三段式分析報告 |
+| AI 場址診斷 + 景觀策略 | AI model | 需要 | 以真實場址數據生成三段式分析報告 |
 
 ### 景觀決策引擎說明
 
@@ -217,7 +217,7 @@ LandWeaver-AI/
 | 建置工具 | Vite 6（MPA 多頁應用） |
 | 樣式系統 | Tailwind CSS v4（@theme Design Tokens） |
 | 3D 地球儀 | CesiumJS 1.140 + Resium |
-| AI 引擎 | Google Gemini (`@google/genai` v1.30) |
+| AI 引擎 | Provider SDK |
 | 動畫 | Framer Motion |
 | 圖示 | Lucide React |
 | 工具函式 | date-fns、clsx、tailwind-merge |
@@ -258,7 +258,7 @@ LandWeaver-AI/
 - **節氣標籤動態化**：底部依當前月份顯示春分/夏至/秋分/冬至
 
 ### v5.0 — AI 景觀策略 + 多危害圖層 + 效能優化
-- **Gemini AI 景觀策略面板**：點選基地後開啟「景觀策略」開關，自動呼叫 `gemini-2.0-flash`，以場址真實數據（分區法規、微氣候、水文、空品）生成三段式診斷報告：場址診斷 × 3 / 綜合結論 / 行動建議 × 4
+- **AI 景觀策略面板**：點選基地後開啟「景觀策略」開關，自動呼叫模型，以場址真實數據（分區法規、微氣候、水文、空品）生成三段式診斷報告：場址診斷 × 3 / 綜合結論 / 行動建議 × 4
 - **API Key 整合修正**：策略面板改由 `ApiKeyManager` 共用 `IMAGE_GEN_KEY`（localStorage），與其他模組 Key 管理一致，無需重複設定
 - **重試機制**：策略生成失敗後「重新生成」按鈕可正確觸發新一輪呼叫（useEffect trigger counter）
 - **多危害疊圖 08A–08I**（新增 8 個 WMS 代理）：
@@ -282,14 +282,14 @@ LandWeaver-AI/
   - 修正 `strategyError` 被 `cancelled` guard 攔截導致錯誤訊息永遠空白
   - 修正平行化重構後 `townResult` / `zoneResult` 變數殘留引用，造成 `ReferenceError` 使 `landscapeData` 始終為 `null`（右側面板「都市計畫分區」與「地段」消失）
   - 修正 `MapControl` 太陽路徑弧線與方位角投影線共用同一 Cesium `Entity`，第二條 `PolylineGraphics` 靜默覆蓋第一條，導致太陽弧線完全不顯示
-  - 修正策略 fetch Race Condition：快速切換基地時，前一個基地的 Gemini 回應會在 state reset 後才 resolve，以舊結果污染新基地的診斷內容；加入 generation counter ref 確保過時的 resolve 被丟棄
-  - 新增 Module 05 ⚙ 設定面板的 **Gemini API Key 輸入欄**：原本設定面板只有 CWA / EPA / TDX 等 Key，使用者若未使用其他模組則無法在 Module 05 內設定 AI 診斷所需的 Gemini Key
+  - 修正策略 fetch Race Condition：快速切換基地時，前一個基地的 AI 回應會在 state reset 後才 resolve，以舊結果污染新基地的診斷內容；加入 generation counter ref 確保過時的 resolve 被丟棄
+  - 新增 Module 05 ⚙ 設定面板的 **AI API Key 輸入欄**：原本設定面板只有 CWA / EPA / TDX 等 Key，使用者若未使用其他模組則無法在 Module 05 內設定 AI 診斷所需的 Key
 
 ### v6.0 — Module 06 整合 + 公開上線
 - **Module 06 — 綠化法規計算機**：整合 `taipei-greenery-calc` 專案，支援台北市 / 新北市綠化自治法規計算（第 5、7、8、9、12 條），含即時試算、喬木棵數計算與查核清單
 - **Vercel 公開部署**：新增 `api/proxy/[...path].ts` Vercel Edge Function，取代開發環境 Vite Proxy，解決 12 個台灣政府 API 的 CORS 問題；`vercel.json` 設定 build + rewrites
 - **首頁架構調整**：新增 PHASE 03 · REGULATION & COMPLIANCE 區塊；Footer 更新為 © 2026 LandWeaver AI · Built by C.L Hsieh
-- **GitHub 公開**：Repo 設為 Public，加入 Topics 標籤（react / typescript / ai / cesium / gemini / taiwan）
+- **GitHub 公開**：Repo 設為 Public，加入 Topics 標籤（react / typescript / ai / cesium / taiwan）
 
 ### v7.0 — 架構穩定化
 - **首頁 React 化**：`index.html`（630 行靜態 HTML）拆分為 `src/home/` React 應用；模組資料集中於 `data/modules.ts`，背景/卡片/phase 各自成元件，動畫與視覺完整保留
@@ -308,9 +308,9 @@ LandWeaver-AI/
 ### v8.0 — Module 05 功能完整化 + 效能精煉
 - **右側資訊面板獨立** (`RightPanel.tsx`)：氣象 / 日照 / 地形 / 土壤 / 水文 / 都市干擾 / 容積率 / AI 植栽 / AI 策略診斷 / 匯出按鈕 / 系統狀態，全數封裝於獨立元件
 - **報告匯出** (`exportService.ts`)：純函式架構，支援 `.md` / `.txt` / PDF（瀏覽器列印對話框）三種格式，9 個資料章節含 Markdown 表格
-- **AI 景觀策略服務** (`strategyService.ts`)：乾淨提取為獨立模組；使用 `gemini-2.0-flash`，結構化 JSON prompt，回傳場址診斷 × 3 / 綜合結論 / 行動建議 × 4
+- **AI 景觀策略服務** (`strategyService.ts`)：乾淨提取為獨立模組；使用結構化 JSON prompt，回傳場址診斷 × 3 / 綜合結論 / 行動建議 × 4
 - **TDX 交通服務完整化** (`tdxService.ts`)：Token OIDC 快取（60s buffer）、高鐵 / 台鐵時刻表位置線性內插、六大捷運系統 LiveBoard，全型別定義
-- **`shared/apiKeyService.ts`**：集中管理 Gemini API Key（localStorage → env fallback），解除 `strategyService` 對 `imageGenerationService` 的語意不當依賴
+- **`shared/apiKeyService.ts`**：集中管理 AI API Key（localStorage → env fallback），解除 `strategyService` 對 `imageGenerationService` 的語意不當依賴
 - **`fetchOverpass.ts` Hedging 模式**：新增 `hedgeRequests: true` 選項，三個 Overpass 鏡像以 `hedgeDelayMs` 交錯同時發出，第一個回應即解決；`usePoiLayer` 已啟用，POI 載入體感顯著加速
 - **`utils/withTimeout.ts` 統一提取**：消除 4 個 API client 的重複 `withTimeout` 實作，共用 `AbortSignal.timeout + AbortSignal.any` polyfill
 - **`gisService.ts` In-Flight 去重 + LRU Cache**：同一座標的第二次點擊直接命中 Promise 快取，不重複打 NLSC API；LRU 上限 60 條目，`prefetchZone()` 與氣象請求並行消除串接延遲
@@ -322,4 +322,4 @@ LandWeaver-AI/
 
 ## 📄 授權
 
-Open Source · Powered by [Gemini AI](https://ai.google.dev/) · [Cesium](https://cesium.com/)
+Open Source · Built with React, Cesium, and public geospatial APIs

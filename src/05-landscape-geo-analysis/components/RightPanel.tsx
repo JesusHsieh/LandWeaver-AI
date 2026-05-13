@@ -484,7 +484,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
                 className="text-[8px] px-1.5 py-0.5 rounded font-bold"
                 style={{ background: 'rgba(188,253,73,0.12)', color: '#BCFD49', border: '1px solid rgba(188,253,73,0.25)' }}
               >
-                GEMINI
+                AI
               </span>
             </div>
 

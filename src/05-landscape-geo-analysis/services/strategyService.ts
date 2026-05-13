@@ -49,7 +49,7 @@ export async function fetchLandscapeStrategy(
 ): Promise<StrategyResult> {
   const apiKey = getConfiguredGeminiApiKey();
 
-  if (!apiKey) throw new Error('請先在右下角 🔑 設定 Gemini API Key（選 Google Gemini）');
+  if (!apiKey) throw new Error('請先在右下角 🔑 設定 AI API Key');
 
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
