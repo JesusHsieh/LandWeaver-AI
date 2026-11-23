@@ -7,7 +7,6 @@ const TARGETS: Record<string, string> = {
   'nlsc-api':       'https://api.nlsc.gov.tw',
   'cgs-wms':        'https://geomap.gsmma.gov.tw',
   'swcb-wms':       'https://246.ardswc.gov.tw',
-  'wra-wms':        'https://maps.wra.gov.tw',
   'soil-wms':       'https://serv.ardswc.gov.tw',
   'moenv-wms':      'https://wsserver.moenv.gov.tw',
   'ncdr-wms':       'https://dmap.ncdr.nat.gov.tw',

@@ -77,14 +77,6 @@ export default defineConfig(({ mode }) => {
           secure: false,
           configure: addTileCacheHeaders,
         },
-        // 08E 淹水潛勢 水利署 WRA WMS
-        '/wra-wms': {
-          target: 'https://maps.wra.gov.tw',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/wra-wms/, ''),
-          secure: true,
-          configure: addTileCacheHeaders,
-        },
         // 08F 山坡地 / 地質敏感區 水保局 soil WMS
         '/soil-wms': {
           target: 'https://serv.ardswc.gov.tw',

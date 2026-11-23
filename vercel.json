@@ -15,8 +15,6 @@
     { "source": "/cgs-wms",              "destination": "/api/proxy?__route=cgs-wms" },
     { "source": "/swcb-wms/:path*",      "destination": "/api/proxy?__route=swcb-wms&__path=:path*" },
     { "source": "/swcb-wms",             "destination": "/api/proxy?__route=swcb-wms" },
-    { "source": "/wra-wms/:path*",       "destination": "/api/proxy?__route=wra-wms&__path=:path*" },
-    { "source": "/wra-wms",              "destination": "/api/proxy?__route=wra-wms" },
     { "source": "/soil-wms/:path*",      "destination": "/api/proxy?__route=soil-wms&__path=:path*" },
     { "source": "/soil-wms",             "destination": "/api/proxy?__route=soil-wms" },
     { "source": "/moenv-wms/:path*",     "destination": "/api/proxy?__route=moenv-wms&__path=:path*" },

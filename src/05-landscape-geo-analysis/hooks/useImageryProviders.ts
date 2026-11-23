@@ -119,8 +119,10 @@ export function useImageryProviders() {
   }), []);
 
   // 08E 淹水潛勢
+  // Loaded straight from WRA, not through /api/proxy: WRA's firewall rejects
+  // requests from Vercel's data-centre IPs, and the server sends CORS headers.
   const wraFloodProvider = useMemo(() => new WebMapServiceImageryProvider({
-    url: '/wra-wms/arcgis/services/WMS/GIC_WMS/MapServer/WMSServer',
+    url: 'https://maps.wra.gov.tw/arcgis/services/WMS/GIC_WMS/MapServer/WMSServer',
     layers: '114nfp_bareland,114nfp_deep',
     ...WMS_OVERLAY_OPTIONS,
     minimumLevel: 7,
