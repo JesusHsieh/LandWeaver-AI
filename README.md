@@ -132,7 +132,7 @@ LandWeaver-AI/
 │   │   │   ├── RightPanel.tsx            # 即時數據面板 + 場址規則檢核（複製給 AI）
 │   │   │   └── TransportCesiumLayer.tsx  # 交通動態圖層（facade）
 │   │   ├── utils/                        # fetchOverpass（hedging）/ withTimeout / fetchJson / geo / ionStatus / terrainSource
-│   │   └── data/transportData.ts         # 台灣六大捷運 + 高鐵 + 台鐵路線資料
+│   │   └── data/                         # transportData.ts 高鐵站點 + routes/*.json 路線與站點快照（OSM）
 │   └── 06-taipei-greenery-calc/          # Module 06 · 綠化法規計算機
 │       ├── App.tsx                       # 主介面、城市切換（台北市 / 新北市）
 │       ├── types.ts                      # 共用型別 + grouped prop 介面
@@ -170,7 +170,7 @@ LandWeaver-AI/
 | 山坡地 / 地質敏感區範圍 | 水土保持局 SWCB WMS | 不需要 | 08F 疊圖 |
 | 飲用水保護區 | 環境部 MOENV WMS | 不需要 | 08G 疊圖 |
 | 文化資產保護範圍 | 國家災害防救科技中心 NCDR WMS | 不需要 | 08H 疊圖 |
-| 捷運 / 高鐵 / 台鐵路線 | 內建靜態資料 | 不需要 | 六大捷運系統 + 高鐵 + 台鐵路線幾何 |
+| 捷運 / 高鐵 / 台鐵路線與站點 | OSM 快照（`data/routes/*.json`） | 不需要 | 北捷（含環狀線、輕軌）/ 桃捷 / 中捷 / 高捷 + 高鐵 + 台鐵，含全部站點與站名；以 `node scripts/fetch-transport-routes.mjs` 更新（讀 OSM API，不經 Overpass） |
 | 捷運列車動態 | TDX 交通部 | 需要 | LiveBoard 即時班次，無 Key 則停用 |
 | 太陽方位角 / 高度角 | 天文公式 | 不需要 | 即時計算，無需外部 API |
 | 底圖 OSM / 暗色 / 亮色 | OpenStreetMap / **Esri Canvas** | 不需要 | 暗色、亮色改用 Esri（CARTO 已改為需 Key），含地名標註；最高縮放 level 16 |
@@ -227,6 +227,9 @@ LandWeaver-AI/
 - [ ] 「NDVI」圖層實為 OSM 公園 / 林地標籤，非衛星植生指數
 - [ ] 土壤入滲、排水係數為坡度與氣象推估公式，未接真實土壤圖
 
+**外部服務依賴**
+- [ ] 道路分級、生活機能 POI、NDVI、建物密度、08G、08H 即時查詢 Overpass 公共鏡像，鏡像故障或過載時載入失敗（可評估改用免 Key 的 OSM 向量圖磚）
+
 **功能缺口**
 - [ ] 地址 / 地名搜尋
 - [ ] 基地範圍（多邊形）繪製與面積量測（目前僅單點分析 + 兩點距離）
@@ -253,7 +256,7 @@ LandWeaver-AI/
 | 台中捷運（TMRT） | 內建 + TDX LiveBoard | ✅ |
 | 台灣高鐵（THSR） | 內建（時刻表模擬） | ✅ |
 | 台灣鐵路（TRA） | 內建（時刻表模擬） | ✅ |
-| YouBike 站點 | Overpass API | — |
+| YouBike 站點 | data.taipei 即時 | ✅ |
 
 ---
 
@@ -376,6 +379,13 @@ LandWeaver-AI/
 - **Ion 失效自動備援**（`utils/ionStatus.ts`）：啟動時檢查 token；無效時地形改用 Esri World Elevation 3D、OSM 3D 建物改用 Overpass 輪廓（`useOsmBuildingsFallback`，跟隨畫面中心載入），Google 3D 停用並在側欄提示；⚙ 設定填入新 token 免重新整理即生效
 - **分區圖示**：Iconify 圖示 404，改為內嵌 SVG
 - **移除 Gemini**：刪除 `strategyService.ts`、🔑 API Key 按鈕與設定欄位；改為本機「場址規則檢核」（`services/siteRules.ts`），13 項逐項判讀，可一鍵複製 Markdown 表格交給任一 AI 分析，Module 05 不再消耗任何 AI 額度
+
+### v9.1 — Module 05 交通區位修復 + 08E 直連
+- **路線改為內建 OSM 快照**：捷運 / 高鐵 / 台鐵 / 桃捷 / 中捷 / 高捷路線不再於執行時查 Overpass（公共鏡像常連不上，路線整個畫不出來）。`scripts/fetch-transport-routes.mjs` 從 OSM API 讀取各路線 relation、簡化（約 2 m）後存為 `data/routes/*.json`（共約 375 KB，開啟圖層時才載入），開啟後 0.1–0.3 秒顯示；台鐵改由各路線 relation 取得，不含糖鐵與工業側線
+- **站點補齊並顯示站名**：原本只內建少數站且部分座標錯誤（點不在線上），拉遠時捷運站點會消失、台鐵站點縮到看不見。現在站點也來自 OSM 快照：北捷 141、台鐵 242、桃捷 22、中捷 18、高捷 75 站，白點加路線色外框，拉近後顯示站名（北捷、高捷 12–15 km 內，桃捷、中捷 25 km 內，台鐵 40 km 內）
+- **路線載入失敗不再快取空結果**，下次開啟會重試
+- **道路分級 / 生活機能 POI**：查詢逾時由 15 / 7 秒放寬至 30 秒（目前可用的鏡像常需 15–25 秒），Overpass 預設逾時同步放寬；未點選分析點時側欄提示
+- **08E 淹水潛勢**：水利署防火牆拒絕 Vercel 機房 IP，改由瀏覽器直連 `maps.wra.gov.tw`（有開 CORS），移除 `wra-wms` proxy 路由
 
 ---
 

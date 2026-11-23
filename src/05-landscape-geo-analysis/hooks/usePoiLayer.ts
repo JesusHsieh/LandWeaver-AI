@@ -55,7 +55,7 @@ function poiCatOf(el: OverpassPoiElement): PoiCat | null {
 function buildPoiQuery(lat: number, lng: number) {
   const r = POI_QUERY_RADIUS_DEG;
   const bbox = `${lat - r},${lng - r},${lat + r},${lng + r}`;
-  return `[out:json][timeout:8];(
+  return `[out:json][timeout:25];(
     node["amenity"~"^(school|kindergarten|university|college)$"](${bbox});
     way["amenity"~"^(school|kindergarten|university|college)$"](${bbox});
     node["leisure"~"^(park|playground|garden)$"](${bbox});
@@ -119,7 +119,7 @@ export function usePoiLayer(settings: MapSettings): { poiFeatures: PoiFeature[];
     fetchOverpass<OverpassPoiElement>(buildPoiQuery(lat, lng), {
       label: '生活機能 POI',
       signal: controller.signal,
-      timeoutMs: 7_000,
+      timeoutMs: 30_000, // the only reliable mirror (mail.ru) often needs 15–25 s
       hedgeRequests: true,
       hedgeDelayMs: 650,
       retryDelayMs: 250,

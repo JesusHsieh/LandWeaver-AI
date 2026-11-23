@@ -4,7 +4,7 @@
  * 使用 GroundPolylinePrimitive 讓路線貼合地球表面（不浮空）
  * 使用 PointPrimitiveCollection 顯示站點與列車
  *
- * 路線幾何：OSM Overpass API（way-based，免費・無需 Key）
+ * 路線幾何：OSM 快照（data/routes/*.json，scripts/fetch-transport-routes.mjs 產生）
  * 列車動態：TDX（免費申請・需 Client ID/Secret）
  * YouBike：data.taipei（完全免費）
  */
@@ -25,10 +25,10 @@ import {
 import { MapSettings } from '../types';
 import {
   MRT_STATIONS, THSR_STATIONS,
-  TRA_STATIONS, TAOYUAN_MRT_STATIONS, TAICHUNG_MRT_STATIONS, KAOHSIUNG_MRT_STATIONS,
-  loadMrtWayGeometry, loadThsrWayGeometry,
-  loadTRAWayGeometry, loadTaoyuanMrtGeometry, loadTaichungMrtGeometry, loadKaohsiungMrtGeometry,
-  type MrtWayGroup,
+  TAOYUAN_MRT_STATIONS, TAICHUNG_MRT_STATIONS, KAOHSIUNG_MRT_STATIONS,
+  loadMrtRoute, loadThsrRoute,
+  loadTraRoute, loadTaoyuanMrtRoute, loadTaichungMrtRoute, loadKaohsiungMrtRoute,
+  type GroupedRoute,
 } from '../data/transportData';
 import {
   fetchMrtLiveBoard, fetchMetroLiveBoard,
@@ -38,7 +38,10 @@ import {
   type MrtLiveBoard,
 } from '../services/tdxService';
 
-import { waitForViewer, removePrim, makeGroundLine } from '../transport/cesiumPrimitiveHelpers';
+import {
+  waitForViewer, removePrim, makeGroundLine,
+  makeStations, addStations, removeStations, type StationPrims,
+} from '../transport/cesiumPrimitiveHelpers';
 import { useRailRouteLayer } from '../transport/useRailRouteLayer';
 import { useRailTrainLayer } from '../transport/useRailTrainLayer';
 import { useYouBikeLayer } from '../transport/useYouBikeLayer';
@@ -55,7 +58,7 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
   const thsrRouteRef   = useRef<GroundPolylinePrimitive | null>(null);
 
   // Station / label collections
-  const mrtStPtsRef    = useRef<PointPrimitiveCollection | null>(null);
+  const mrtStationsRef = useRef<StationPrims | null>(null);
   const thsrStPtsRef   = useRef<PointPrimitiveCollection | null>(null);
   const thsrLabelsRef  = useRef<LabelCollection | null>(null);
 
@@ -66,12 +69,12 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
 
   // Kaohsiung MRT (multi-colour, handled separately)
   const ksMrtRouteRef  = useRef<GroundPolylinePrimitive[]>([]);
-  const ksMrtStPtsRef  = useRef<PointPrimitiveCollection | null>(null);
+  const ksMrtStationsRef = useRef<StationPrims | null>(null);
 
   // Geometry caches (loaded once)
-  const mrtGeoCache    = useRef<MrtWayGroup[] | null>(null);
+  const mrtGeoCache    = useRef<GroupedRoute | null>(null);
   const thsrGeoCache   = useRef<[number, number][][] | null>(null);
-  const ksMrtGeoCache  = useRef<MrtWayGroup[] | null>(null);
+  const ksMrtGeoCache  = useRef<GroupedRoute | null>(null);
 
   const getV = () => viewerRef.current?.cesiumElement;
 
@@ -80,13 +83,13 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
     const v = getV();
     mrtRouteRef.current.forEach(p => removePrim(v, p));
     removePrim(v, thsrRouteRef.current);
-    removePrim(v, mrtStPtsRef.current);
+    removeStations(v, mrtStationsRef.current);
     removePrim(v, thsrStPtsRef.current);
     removePrim(v, thsrLabelsRef.current);
     removePrim(v, mrtTrainsRef.current);
     removePrim(v, thsrTrainsRef.current);
     ksMrtRouteRef.current.forEach(p => removePrim(v, p));
-    removePrim(v, ksMrtStPtsRef.current);
+    removeStations(v, ksMrtStationsRef.current);
     if (thsrTimerRef.current) clearInterval(thsrTimerRef.current);
   }, []);
 
@@ -95,8 +98,8 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
     const vNow = getV();
     mrtRouteRef.current.forEach(p => removePrim(vNow, p));
     mrtRouteRef.current = [];
-    removePrim(vNow, mrtStPtsRef.current);
-    mrtStPtsRef.current = null;
+    removeStations(vNow, mrtStationsRef.current);
+    mrtStationsRef.current = null;
 
     if (!settings.showMrtLayer) return;
 
@@ -105,31 +108,21 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
       const v = await waitForViewer(viewerRef);
       if (cancelled || !settings.showMrtLayer) return;
 
-      if (!mrtGeoCache.current) {
-        console.log('[Transport] 載入 MRT 路線 (OSM way)...');
-        mrtGeoCache.current = await loadMrtWayGeometry();
-      }
+      const route = mrtGeoCache.current ?? await loadMrtRoute();
+      if (route.lines.length) mrtGeoCache.current = route; // an empty result is retried next time
       if (cancelled || !settings.showMrtLayer) return;
 
-      for (const { color, segments } of mrtGeoCache.current) {
+      for (const { color, segments } of route.lines) {
         const prim = makeGroundLine(segments, color, 4);
         if (!prim) continue;
         v.scene.primitives.add(prim);
         mrtRouteRef.current.push(prim);
       }
 
-      const pts = new PointPrimitiveCollection();
-      MRT_STATIONS.forEach(s => pts.add({
-        position:     Cartesian3.fromDegrees(s.coords[0], s.coords[1], 2),
-        pixelSize:    9,
-        color:        Color.WHITE.withAlpha(0.9),
-        outlineColor: Color.fromBytes(50, 50, 50, 220),
-        outlineWidth: 1.5,
-        scaleByDistance: new NearFarScalar(5e3, 1.4, 6e4, 0.3),
-        distanceDisplayCondition: new DistanceDisplayCondition(0, 8e4),
-      }));
-      v.scene.primitives.add(pts);
-      mrtStPtsRef.current = pts;
+      // 多線交會，外框用深灰；站距密，拉近到 15 km 內才顯示站名
+      const stations = makeStations(route.stations, { outline: '#333333', pixelSize: 8, labelMaxDistance: 1.5e4 });
+      addStations(v, stations);
+      mrtStationsRef.current = stations;
     })();
 
     return () => { cancelled = true; };
@@ -187,13 +180,11 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
       const v = await waitForViewer(viewerRef);
       if (cancelled || !settings.showThsrLayer) return;
 
-      if (!thsrGeoCache.current) {
-        console.log('[Transport] 載入 THSR 路線 (OSM way)...');
-        thsrGeoCache.current = await loadThsrWayGeometry();
-      }
+      const segments = thsrGeoCache.current ?? (await loadThsrRoute()).lines;
+      if (segments.length) thsrGeoCache.current = segments;
       if (cancelled || !settings.showThsrLayer) return;
 
-      const prim = makeGroundLine(thsrGeoCache.current, '#DC3232', 5);
+      const prim = makeGroundLine(segments, '#DC3232', 5);
       if (prim) {
         v.scene.primitives.add(prim);
         thsrRouteRef.current = prim;
@@ -278,8 +269,8 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
     const vNow = getV();
     ksMrtRouteRef.current.forEach(p => removePrim(vNow, p));
     ksMrtRouteRef.current = [];
-    removePrim(vNow, ksMrtStPtsRef.current);
-    ksMrtStPtsRef.current = null;
+    removeStations(vNow, ksMrtStationsRef.current);
+    ksMrtStationsRef.current = null;
 
     if (!settings.showKaohsiungMrtLayer) return;
     let cancelled = false;
@@ -287,30 +278,20 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
       const v = await waitForViewer(viewerRef);
       if (cancelled || !settings.showKaohsiungMrtLayer) return;
 
-      if (!ksMrtGeoCache.current) {
-        console.log('[Transport] 載入 高捷 (OSM relation)...');
-        ksMrtGeoCache.current = await loadKaohsiungMrtGeometry();
-      }
+      const route = ksMrtGeoCache.current ?? await loadKaohsiungMrtRoute();
+      if (route.lines.length) ksMrtGeoCache.current = route;
       if (cancelled || !settings.showKaohsiungMrtLayer) return;
 
-      for (const { color, segments } of ksMrtGeoCache.current) {
+      for (const { color, segments } of route.lines) {
         const prim = makeGroundLine(segments, color, 4);
         if (!prim) continue;
         v.scene.primitives.add(prim);
         ksMrtRouteRef.current.push(prim);
       }
 
-      const pts = new PointPrimitiveCollection();
-      KAOHSIUNG_MRT_STATIONS.forEach(s => pts.add({
-        position:    Cartesian3.fromDegrees(s.coords[0], s.coords[1], 2),
-        pixelSize:   9,
-        color:       Color.WHITE.withAlpha(0.9),
-        outlineColor: Color.fromCssColorString('#EF4444').withAlpha(0.85),
-        outlineWidth: 2,
-        scaleByDistance: new NearFarScalar(1e4, 1.4, 4e5, 0.3),
-      }));
-      v.scene.primitives.add(pts);
-      ksMrtStPtsRef.current = pts;
+      const stations = makeStations(route.stations, { outline: '#EF4444', pixelSize: 8, labelMaxDistance: 1.2e4 }); // 輕軌站距約 500 m
+      addStations(v, stations);
+      ksMrtStationsRef.current = stations;
     })();
     return () => { cancelled = true; };
   }, [settings.showKaohsiungMrtLayer]);
@@ -320,8 +301,8 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
     viewerRef,
     settings.showTRALayer,
     '#3A7BD5', 3,
-    loadTRAWayGeometry,
-    TRA_STATIONS, 10, 'TRA',
+    loadTraRoute,
+    8, 4e4,      // 站點大小、相機 40 km 內顯示站名
   );
 
   // ── 桃園捷運路線 + 站點（useRailRouteLayer hook）──────────────────────────────
@@ -329,8 +310,8 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
     viewerRef,
     settings.showTaoyuanMrtLayer,
     '#8B5CF6', 4,
-    loadTaoyuanMrtGeometry,
-    TAOYUAN_MRT_STATIONS, 9, '桃捷',
+    loadTaoyuanMrtRoute,
+    8, 2.5e4,
   );
 
   // ── 台中捷運路線 + 站點（useRailRouteLayer hook）──────────────────────────────
@@ -338,8 +319,8 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
     viewerRef,
     settings.showTaichungMrtLayer,
     '#22C55E', 4,
-    loadTaichungMrtGeometry,
-    TAICHUNG_MRT_STATIONS, 9, '中捷',
+    loadTaichungMrtRoute,
+    8, 2.5e4,
   );
 
   // ── TRA 列車動態（useRailTrainLayer hook）────────────────────────────────────

@@ -20,7 +20,7 @@ export interface OverpassOptions {
   timeoutMs?: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_TIMEOUT_MS = 30_000; // maps.mail.ru often needs 15–25 s
 const DEFAULT_RETRY_DELAY_MS = 800;
 const DEFAULT_HEDGE_DELAY_MS = 2_000;
 

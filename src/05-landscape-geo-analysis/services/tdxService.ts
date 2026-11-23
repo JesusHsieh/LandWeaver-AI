@@ -234,7 +234,7 @@ export interface TRATrainPosition {
   toStation: string;
 }
 
-/** 台鐵站名 → 座標（內插用，與 TRA_STATIONS 保持一致） */
+/** 台鐵站名 → 座標（列車位置內插用） */
 export const TRA_STATION_NAME_COORDS: Record<string, [number, number]> = {
   '基隆':   [121.7398, 25.1290],
   '台北':   [121.5170, 25.0478],

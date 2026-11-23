@@ -64,6 +64,13 @@ export const TransportBlock: React.FC<TransportBlockProps> = ({ settings, set, o
         實心大點 = 500m 內 · 淡小點 = 500–600m · 統計標籤顯示於地圖
       </div>
     )}
+    {(settings.showRoadLayer || settings.showPoiLayer) && (
+      <div className="mb-2 text-[9px] px-1" style={{ color: settings.analysisPoint ? '#555' : '#FF9800' }}>
+        {settings.analysisPoint
+          ? 'OSM 即時查詢分析點周邊，約需 10–30 秒'
+          : '⚠ 請先在地圖上點選分析點，才會查詢周邊道路與設施'}
+      </div>
+    )}
 
     <div className="mt-2 mb-1" style={{ height: '1px', background: '#222' }} />
 
@@ -76,7 +83,7 @@ export const TransportBlock: React.FC<TransportBlockProps> = ({ settings, set, o
     {/* ── 台北捷運 ── */}
     <div className="text-[8px] font-bold mb-1 px-0.5 tracking-widest" style={{ color: '#666' }}>台北捷運 TRTC</div>
     <LayerRow label="路線 + 站點"
-      sub="OSM subway way · 5 條線"
+      sub="OSM · 5 條線 + 環狀線 + 輕軌"
       active={settings.showMrtLayer}
       onClick={() => set('showMrtLayer', !settings.showMrtLayer)}
       accent="#E3002C" />

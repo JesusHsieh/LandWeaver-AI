@@ -1,12 +1,10 @@
 /**
  * 靜態交通資料
- * 路線幾何：優先從 OSM Overpass API 動態取得；失敗時使用內建站點連線 fallback
- * Overpass 鏡像三組輪流嘗試，避免單點 504 / 429
+ * 地圖上的路線與站點：OSM 快照（data/routes/*.json），執行時不查 Overpass
+ * 下方內建站點：高鐵站點，以及列車動態（TDX）比對站 ID 用的主要站點
  */
 
-import { fetchOverpassJson } from '../utils/fetchOverpass';
-
-// ── 台北捷運（站點資料 / fallback）───────────────────────────────────────────
+// ── 台北捷運（列車動態比對用）─────────────────────────────────────────────────
 
 export interface MrtLine {
   id: string;
@@ -70,7 +68,7 @@ export const THSR_STATIONS: ThsrStation[] = [
   { id: '0200', name: '左營', coords: [120.30450, 22.68580] }, // latitude.to: 22°41′8″N 120°18′16″E
 ];
 
-// ── 台鐵 TRA ──────────────────────────────────────────────────────────────────
+// ── 站點型別（桃捷 / 中捷 / 高捷）──────────────────────────────────────────────
 
 export interface SimpleStation {
   id: string;
@@ -78,34 +76,9 @@ export interface SimpleStation {
   coords: [number, number];
 }
 
-/** 台鐵主要站點（縱貫線・北迴・南迴・台東線） */
-export const TRA_STATIONS: SimpleStation[] = [
-  { id: 'TRA-Keelung',   name: '基隆',   coords: [121.7398, 25.1290] },
-  { id: 'TRA-Taipei',    name: '台北',   coords: [121.5170, 25.0478] },
-  { id: 'TRA-Banciao',   name: '板橋',   coords: [121.4634, 25.0143] },
-  { id: 'TRA-Taoyuan',   name: '桃園',   coords: [121.3130, 24.9893] },
-  { id: 'TRA-Zhongli',   name: '中壢',   coords: [121.2246, 24.9544] },
-  { id: 'TRA-Hsinchu',   name: '新竹',   coords: [120.9697, 24.8024] },
-  { id: 'TRA-Zhunan',    name: '竹南',   coords: [120.8880, 24.6874] },
-  { id: 'TRA-Miaoli',    name: '苗栗',   coords: [120.8199, 24.5637] },
-  { id: 'TRA-Fengyuan',  name: '豐原',   coords: [120.7184, 24.2539] },
-  { id: 'TRA-Taichung',  name: '台中',   coords: [120.6830, 24.1380] },
-  { id: 'TRA-Changhua',  name: '彰化',   coords: [120.5382, 24.0778] },
-  { id: 'TRA-Yuanlin',   name: '員林',   coords: [120.5709, 23.9581] },
-  { id: 'TRA-Chiayi',    name: '嘉義',   coords: [120.4278, 23.4783] },
-  { id: 'TRA-Xinying',   name: '新營',   coords: [120.3108, 23.3022] },
-  { id: 'TRA-Tainan',    name: '台南',   coords: [120.2143, 22.9975] },
-  { id: 'TRA-Zuoying',   name: '左營',   coords: [120.3069, 22.6890] },
-  { id: 'TRA-Kaohsiung', name: '高雄',   coords: [120.2943, 22.6393] },
-  { id: 'TRA-Pingtung',  name: '屏東',   coords: [120.4878, 22.6712] },
-  { id: 'TRA-Yilan',     name: '宜蘭',   coords: [121.7531, 24.7512] },
-  { id: 'TRA-Hualien',   name: '花蓮',   coords: [121.6031, 23.9912] },
-  { id: 'TRA-Taitung',   name: '台東',   coords: [121.1294, 22.7977] },
-];
-
 // ── 桃園捷運 TYMC ────────────────────────────────────────────────────────────
 
-/** 桃捷主要站點（機場線 A 線） */
+/** 桃捷主要站點（機場線 A 線；列車動態比對用） */
 export const TAOYUAN_MRT_STATIONS: SimpleStation[] = [
   { id: 'A1',  name: '台北車站',      coords: [121.5170, 25.0478] },
   { id: 'A3',  name: '台灣桃園國際機場', coords: [121.2943, 25.0766] },
@@ -120,7 +93,7 @@ export const TAOYUAN_MRT_STATIONS: SimpleStation[] = [
 
 // ── 台中捷運 TMRT ────────────────────────────────────────────────────────────
 
-/** 中捷主要站點（綠線） */
+/** 中捷主要站點（綠線；列車動態比對用） */
 export const TAICHUNG_MRT_STATIONS: SimpleStation[] = [
   { id: 'G1',  name: '北屯總站',    coords: [120.6944, 24.1782] },
   { id: 'G3',  name: '文心公益',    coords: [120.6868, 24.1702] },
@@ -131,7 +104,7 @@ export const TAICHUNG_MRT_STATIONS: SimpleStation[] = [
 
 // ── 高雄捷運 KRTC ────────────────────────────────────────────────────────────
 
-/** 高捷主要站點（紅線 + 橘線） */
+/** 高捷主要站點（紅線 + 橘線；列車動態比對用） */
 export const KAOHSIUNG_MRT_STATIONS: SimpleStation[] = [
   // 紅線
   { id: 'R4',   name: '南岡山',   coords: [120.2978, 22.7884] },
@@ -146,280 +119,69 @@ export const KAOHSIUNG_MRT_STATIONS: SimpleStation[] = [
   { id: 'O14',  name: '大寮',     coords: [120.3838, 22.6008] },
 ];
 
-// ── Overpass 交通查詢設定 ─────────────────────────────────────────────────────
-
-const TRANSPORT_OVERPASS_TIMEOUT_MS = 45_000;
-
-const fetchTransportOverpass = (query: string, label: string) =>
-  fetchOverpassJson<any>(query, { label, timeoutMs: TRANSPORT_OVERPASS_TIMEOUT_MS });
-
-// ── MrtWayGroup 介面 ──────────────────────────────────────────────────────────
+// ── 路線幾何（OSM 快照）────────────────────────────────────────────────────────
+// 由 scripts/fetch-transport-routes.mjs 從 OpenStreetMap 抓取路線與站點，存成 data/routes/*.json，
+// 執行時不再查 Overpass：公共鏡像常常連不上或回應很慢，圖層會整個出不來。
+// 鐵路路線很少變動，需要更新時重新執行該腳本即可。
 
 export interface MrtWayGroup {
   color: string;
   segments: [number, number][][];
 }
 
-// ── MRT 色彩推斷 ─────────────────────────────────────────────────────────────
-
-const MRT_LINE_COLORS: Record<string, string> = {
-  R:  '#E3002C',  // 淡水信義線
-  BL: '#0070BD',  // 板南線
-  G:  '#008659',  // 松山新店線
-  O:  '#F8B61C',  // 中和新蘆線
-  BR: '#C48A00',  // 文湖線
-  Y:  '#FAD518',  // 環狀線
-  V:  '#FEBEB5',  // 淡海輕軌（藍海線+綠山線合色）
-  K:  '#C3B091',  // 安坑輕軌
-};
-
-const MRT_NAME_COLOR: Array<[RegExp, string]> = [
-  [/淡水|信義/,     '#E3002C'],
-  [/板南/,          '#0070BD'],
-  [/松山|新店/,     '#008659'],
-  [/中和|新蘆/,     '#F8B61C'],
-  [/文湖/,          '#C48A00'],
-  [/環狀/,          '#FAD518'],
-  [/新北投/,        '#F890A5'],  // 新北投支線（粉紅）
-  [/小碧潭/,        '#CEDC00'],  // 小碧潭支線（黃綠）
-  [/淡海|藍海|綠山/, '#FEBEB5'], // 淡海輕軌
-  [/安坑/,          '#C3B091'],  // 安坑輕軌
-];
-
-function getMrtColor(tags: Record<string, string>): string {
-  if (tags.colour) return tags.colour;
-  if (tags.color)  return tags.color;
-  if (tags.ref && MRT_LINE_COLORS[tags.ref]) return MRT_LINE_COLORS[tags.ref];
-  const name = tags.name || tags['name:zh'] || '';
-  for (const [re, color] of MRT_NAME_COLOR) {
-    if (re.test(name)) return color;
-  }
-  return '#AAAAAA';
+export interface RouteStation {
+  name: string;
+  coords: [number, number]; // [lng, lat]
 }
 
-// ── 台北捷運 ─────────────────────────────────────────────────────────────────
+/** 一條路線快照：線段（或依顏色分組的線段）+ 沿線站點 */
+export interface RouteData<T> {
+  lines: T;
+  stations: RouteStation[];
+}
 
-/** 從 OSM 取得台北/新北捷運（TRTC）+ 輕軌 way 幾何，依顏色分組；失敗時回傳 []
- *  明確列出所有 28 條 relations（含雙向、支線），way ID 去重避免重複繪製
- *  R 淡水信義線: 3343808,5378981,5633242,9439377
- *  新北投支線:   2665129,9437206
- *  BL 板南線:    199038,9437776
- *  BR 文湖線:    447449,4264892
- *  G 松山新店線: 447471,4250356,4250357,9437777
- *  小碧潭支線:   4250380,4250381
- *  O 中和新蘆線: 4250352,4250353,4250354,4250355
- *  Y 環狀線:     3322093,8165684
- *  V 淡海輕軌:   5990742,9154523,9154524,13611116
- *  K 安坑輕軌:   15443525,15443526 */
-export async function loadMrtWayGeometry(): Promise<MrtWayGroup[]> {
-  const query = `[out:json][timeout:90];
-(
-  relation(3343808);relation(5378981);relation(5633242);relation(9439377);
-  relation(2665129);relation(9437206);
-  relation(199038);relation(9437776);
-  relation(447449);relation(4264892);
-  relation(447471);relation(4250356);relation(4250357);relation(9437777);
-  relation(4250380);relation(4250381);
-  relation(4250352);relation(4250353);relation(4250354);relation(4250355);
-  relation(3322093);relation(8165684);
-  relation(5990742);relation(9154523);relation(9154524);relation(13611116);
-  relation(15443525);relation(15443526);
-);
-way(r)["railway"];out geom tags;`;
+export type LineRoute = RouteData<[number, number][][]>;
+export type GroupedRoute = RouteData<MrtWayGroup[]>;
+
+interface RouteSnapshot<T> {
+  source: string;
+  fetched: string;
+  lines: T;
+  stations?: RouteStation[];
+}
+
+async function loadRouteSnapshot<T extends unknown[]>(url: URL, label: string): Promise<RouteData<T>> {
   try {
-    const data = await fetchTransportOverpass(query, 'MRT');
-    const colorMap = new Map<string, [number, number][][]>();
-    const seen = new Set<number>(); // way ID 去重，雙向 relation 同一條 way 只畫一次
-
-    for (const el of data.elements as any[]) {
-      if (el.type !== 'way' || !el.geometry || seen.has(el.id)) continue;
-      seen.add(el.id);
-      const seg: [number, number][] = (el.geometry as { lat: number; lon: number }[])
-        .map(nd => [nd.lon, nd.lat]);
-      if (seg.length < 2) continue;
-      const color = getMrtColor(el.tags || {});
-      if (!colorMap.has(color)) colorMap.set(color, []);
-      colorMap.get(color)!.push(seg);
-    }
-
-    if (colorMap.size === 0) throw new Error('無路段資料');
-
-    const result = Array.from(colorMap.entries()).map(([color, segments]) => ({ color, segments }));
-    console.log(`[OSM] MRT: ${result.length} 顏色組, ${seen.size} 路段`);
-    return result;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { lines, stations = [] } = await res.json() as RouteSnapshot<T>;
+    return { lines, stations };
   } catch (e) {
-    console.warn('[OSM] MRT 取得失敗:', (e as Error).message);
-    return [];
+    console.warn(`[Transport] ${label} 路線載入失敗:`, (e as Error).message);
+    return { lines: [] as unknown as T, stations: [] };
   }
 }
 
-// ── 台灣高鐵 ──────────────────────────────────────────────────────────────────
+/** 台北/新北捷運（TRTC）+ 輕軌，依路線顏色分組 */
+export const loadMrtRoute = () =>
+  loadRouteSnapshot<MrtWayGroup[]>(new URL('./routes/mrt.json', import.meta.url), 'MRT');
 
-/** 從 OSM 取得台灣高鐵 way 幾何
- *  THSR 在 OSM 標記為 railway=rail + highspeed=yes，存於班次 relation 的 way 成員
- *  使用全線班次 relation 9825284（603 南港→左營）取得 292 段精確路軌幾何
- *  失敗時回傳 [] */
-export async function loadThsrWayGeometry(): Promise<[number, number][][]> {
-  // relation(9825284) = 高鐵603 全線南港→左營，way members 即為完整路軌 segments
-  const query = `[out:json][timeout:60];relation(9825284);way(r)["railway"="rail"];out geom;`;
-  try {
-    const data = await fetchTransportOverpass(query, 'THSR');
-    const segs = (data.elements as any[])
-      .filter(el => el.type === 'way' && el.geometry)
-      .map(el =>
-        (el.geometry as { lat: number; lon: number }[]).map(
-          nd => [nd.lon, nd.lat] as [number, number]
-        )
-      )
-      .filter(seg => seg.length >= 2);
+/** 台灣高鐵（relation 9825284 南港→左營全線；站點用 THSR_STATIONS） */
+export const loadThsrRoute = () =>
+  loadRouteSnapshot<[number, number][][]>(new URL('./routes/thsr.json', import.meta.url), 'THSR');
 
-    if (segs.length === 0) throw new Error('無路段資料');
-    console.log(`[OSM] THSR: ${segs.length} 路段`);
-    return segs;
-  } catch (e) {
-    console.warn('[OSM] THSR 取得失敗:', (e as Error).message);
-    return [];
-  }
-}
+/** 台鐵 — 各客運路線（縱貫、山海線、屏東、南迴、台東、北迴、宜蘭與支線） */
+export const loadTraRoute = () =>
+  loadRouteSnapshot<[number, number][][]>(new URL('./routes/tra.json', import.meta.url), 'TRA');
 
-// ── 通用 OSM Way 查詢 ─────────────────────────────────────────────────────────
+/** 桃園捷運機場線（relation 2108764） */
+export const loadTaoyuanMrtRoute = () =>
+  loadRouteSnapshot<[number, number][][]>(new URL('./routes/tymc.json', import.meta.url), '桃捷');
 
-async function loadOsmWays(
-  railwayTag: string,
-  bbox: string,
-  label: string,
-  timeout = 30,
-): Promise<[number, number][][]> {
-  const query = `[out:json][timeout:${timeout}];way["railway"~"${railwayTag}"]["service"!~"siding|yard|crossover"](${bbox});out geom;`;
-  try {
-    const data = await fetchTransportOverpass(query, label);
-    const segs = (data.elements as any[])
-      .filter(el => el.type === 'way' && el.geometry)
-      .map(el =>
-        (el.geometry as { lat: number; lon: number }[]).map(
-          nd => [nd.lon, nd.lat] as [number, number]
-        )
-      )
-      .filter((seg: [number, number][]) => seg.length >= 2);
+/** 台中捷運綠線（relation 11330355 + 11330356） */
+export const loadTaichungMrtRoute = () =>
+  loadRouteSnapshot<[number, number][][]>(new URL('./routes/tmrt.json', import.meta.url), '中捷');
 
-    if (segs.length === 0) throw new Error('無路段資料');
-    console.log(`[OSM] ${label}: ${segs.length} 路段`);
-    return segs;
-  } catch (e) {
-    console.warn(`[OSM] ${label} 取得失敗:`, (e as Error).message);
-    return [];
-  }
-}
-
-/** 台鐵 TRA — 全台 railway=rail，排除 sidings/yards 及高鐵路軌（highspeed=yes） */
-export async function loadTRAWayGeometry(): Promise<[number, number][][]> {
-  // 明確排除 highspeed=yes（台灣高鐵路軌），避免與 THSR 圖層重疊
-  const query = `[out:json][timeout:45];way["railway"="rail"]["highspeed"!="yes"]["service"!~"siding|yard|crossover"](21.9,119.9,25.4,122.0);out geom;`;
-  try {
-    const data = await fetchTransportOverpass(query, 'TRA');
-    const segs = (data.elements as any[])
-      .filter(el => el.type === 'way' && el.geometry)
-      .map(el =>
-        (el.geometry as { lat: number; lon: number }[]).map(
-          nd => [nd.lon, nd.lat] as [number, number]
-        )
-      )
-      .filter(seg => seg.length >= 2);
-    if (segs.length === 0) throw new Error('無路段資料');
-    console.log(`[OSM] TRA: ${segs.length} 路段`);
-    return segs;
-  } catch (e) {
-    console.warn('[OSM] TRA 取得失敗:', (e as Error).message);
-    return [];
-  }
-}
-
-/** 桃園捷運機場線 A — OSM relation 2108764（台北→環北全線）
- *  不用 bbox 查詢，避免抓到台北捷運 subway ways */
-export async function loadTaoyuanMrtGeometry(): Promise<[number, number][][]> {
-  const query = `[out:json][timeout:45];relation(2108764);way(r)["railway"];out geom;`;
-  try {
-    const data = await fetchTransportOverpass(query, '桃捷');
-    const segs = (data.elements as any[])
-      .filter(el => el.type === 'way' && el.geometry)
-      .map(el => (el.geometry as {lat:number;lon:number}[]).map(nd => [nd.lon, nd.lat] as [number,number]))
-      .filter(seg => seg.length >= 2);
-    if (segs.length === 0) throw new Error('無路段資料');
-    console.log(`[OSM] 桃捷: ${segs.length} 路段`);
-    return segs;
-  } catch (e) {
-    console.warn('[OSM] 桃捷取得失敗:', (e as Error).message);
-    return [];
-  }
-}
-
-/** 台中捷運綠線 — OSM relation 11330355 + 11330356（雙向取聯集去重） */
-export async function loadTaichungMrtGeometry(): Promise<[number, number][][]> {
-  const query = `[out:json][timeout:45];(relation(11330355);relation(11330356););way(r)["railway"];out geom;`;
-  try {
-    const data = await fetchTransportOverpass(query, '中捷');
-    const seen = new Set<number>();
-    const segs = (data.elements as any[])
-      .filter(el => el.type === 'way' && el.geometry && !seen.has(el.id) && seen.add(el.id))
-      .map(el => (el.geometry as {lat:number;lon:number}[]).map(nd => [nd.lon, nd.lat] as [number,number]))
-      .filter(seg => seg.length >= 2);
-    if (segs.length === 0) throw new Error('無路段資料');
-    console.log(`[OSM] 中捷: ${segs.length} 路段`);
-    return segs;
-  } catch (e) {
-    console.warn('[OSM] 中捷取得失敗:', (e as Error).message);
-    return [];
-  }
-}
-
-/** 高雄捷運紅線+橘線+環狀輕軌 — 依顏色分組，回傳 MrtWayGroup[]
- *  紅線=4174828(#FF0000) 橘線=4174827(#FFA500) 環狀輕軌=6826886+6826887(#80B352)
- *
- *  ⚠️ colour 標籤在 relation 上，不在 way 上。
- *  使用 "out geom" on relation 直接讀取 member way 的幾何，
- *  並以 relation 的 colour tag 上色，確保三線正確分色。
- *  （不可用 "out geom tags"：tags 層級不輸出 members，會變成「無路段資料」） */
-export async function loadKaohsiungMrtGeometry(): Promise<MrtWayGroup[]> {
-  // colour 在 relation，故直接查 relation 幾何（out geom 會內嵌 member way 幾何與 tags）
-  const query = `[out:json][timeout:60];
-(relation(4174828);relation(4174827);relation(6826886);relation(6826887););
-out geom;`;
-
-  // OSM 上各線的 colour tag（relation 層級）
-  const FALLBACK: Record<number, string> = {
-    4174828: '#FF0000',  // 紅線
-    4174827: '#FFA500',  // 橘線
-    6826886: '#80B352',  // 環狀輕軌（順行）
-    6826887: '#80B352',  // 環狀輕軌（逆行）
-  };
-
-  try {
-    const data = await fetchTransportOverpass(query, '高捷');
-    const colorMap = new Map<string, [number, number][][]>();
-    const seen = new Set<number>();
-
-    for (const rel of data.elements as any[]) {
-      if (rel.type !== 'relation') continue;
-      const color = rel.tags?.colour || rel.tags?.color || FALLBACK[rel.id as number] || '#EF4444';
-
-      for (const member of (rel.members || []) as any[]) {
-        if (member.type !== 'way' || !member.geometry || seen.has(member.ref)) continue;
-        if (/platform|stop/.test(member.role ?? '')) continue; // 月台 / 停靠點不是路線
-        seen.add(member.ref);
-        const seg: [number, number][] = (member.geometry as { lat: number; lon: number }[])
-          .map(nd => [nd.lon, nd.lat]);
-        if (seg.length < 2) continue;
-        if (!colorMap.has(color)) colorMap.set(color, []);
-        colorMap.get(color)!.push(seg);
-      }
-    }
-
-    if (colorMap.size === 0) throw new Error('無路段資料');
-    const result = Array.from(colorMap.entries()).map(([color, segments]) => ({ color, segments }));
-    console.log(`[OSM] 高捷: ${result.length} 顏色組, ${seen.size} 路段`);
-    return result;
-  } catch (e) {
-    console.warn('[OSM] 高捷取得失敗:', (e as Error).message);
-    return [];
-  }
-}
+/** 高雄捷運紅線 + 橘線 + 環狀輕軌，依路線顏色分組 */
+export const loadKaohsiungMrtRoute = () =>
+  loadRouteSnapshot<MrtWayGroup[]>(new URL('./routes/krtc.json', import.meta.url), '高捷');

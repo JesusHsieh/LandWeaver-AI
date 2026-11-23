@@ -14,8 +14,8 @@ export function useRoadLayer(settings: MapSettings): { roadFeatures: RoadFeature
     let cancelled = false;
     const r = 0.007;
     const bbox = `${lat - r},${lng - r},${lat + r},${lng + r}`;
-    const q = `[out:json][timeout:15];(way["highway"~"^(trunk|primary|secondary|tertiary|residential|unclassified)$"](${bbox}););out geom 300;`;
-    fetchOverpass<any>(q)
+    const q = `[out:json][timeout:25];(way["highway"~"^(trunk|primary|secondary|tertiary|residential|unclassified)$"](${bbox}););out geom 300;`;
+    fetchOverpass<any>(q, { label: '道路分級' })
       .then(elements => {
         if (cancelled) return;
         const kindMap: Record<string, RoadKind> = {
