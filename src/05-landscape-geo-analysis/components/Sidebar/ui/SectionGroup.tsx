@@ -3,12 +3,14 @@ import React, { useState } from 'react';
 export const LayerRow = ({
   label,
   sub,
+  subColor = '#444',
   active,
   onClick,
   accent,
 }: {
   label: string;
   sub?: string;
+  subColor?: string;
   active: boolean;
   onClick: () => void;
   accent?: string;
@@ -34,7 +36,7 @@ export const LayerRow = ({
             {label}
           </span>
           {sub && (
-            <span className="text-[9px] block truncate" style={{ color: '#444' }}>
+            <span className="text-[9px] block truncate" style={{ color: subColor }} title={sub}>
               {sub}
             </span>
           )}

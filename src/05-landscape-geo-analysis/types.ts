@@ -130,7 +130,7 @@ export interface MapSettings {
   showDrinkingWater: boolean;   // 08G 飲用水保護區 epa.gov.tw
   showCulturalHeritage: boolean;// 08H 文化資產  文化部 BOCH
   showZoningRegulation: boolean; // 08I 容積率/建蔽率 分區查表
-  showLandscapeStrategy: boolean; // AI 景觀／空間策略建議
+  showLandscapeStrategy: boolean; // 場址規則檢核（services/siteRules.ts）
   // ── 國土測繪額外圖層
   showNlscLandSect: boolean;   // 地籍圖 LANDSECT
   showNlscContour: boolean;    // 等高線 MOI_CONTOUR

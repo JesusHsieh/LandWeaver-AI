@@ -16,20 +16,23 @@ const WMS_OVERLAY_OPTIONS = {
   enablePickFeatures: false,
 };
 
+const ESRI_CANVAS_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas';
+const esriCanvas = (service: string) => new UrlTemplateImageryProvider({
+  url: `${ESRI_CANVAS_URL}/${service}/MapServer/tile/{z}/{y}/{x}`,
+  maximumLevel: 16,
+  credit: 'Esri, HERE, Garmin, © OpenStreetMap contributors',
+});
+
 export function useImageryProviders() {
   const osmOrigProvider = useMemo(() => new OpenStreetMapImageryProvider({
     url: 'https://a.tile.openstreetmap.org/',
   }), []);
-  const osmDarkProvider = useMemo(() => new UrlTemplateImageryProvider({
-    url: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-    maximumLevel: 19,
-    credit: '© CartoDB © OpenStreetMap contributors',
-  }), []);
-  const osmLightProvider = useMemo(() => new UrlTemplateImageryProvider({
-    url: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-    maximumLevel: 19,
-    credit: '© CartoDB © OpenStreetMap contributors',
-  }), []);
+  // CARTO basemaps now answer keyless requests with an "API KEY REQUIRED" tile,
+  // so DARK / LIGHT use Esri's keyless Canvas basemaps (tiles stop at level 16).
+  const osmDarkProvider = useMemo(() => esriCanvas('World_Dark_Gray_Base'), []);
+  const osmLightProvider = useMemo(() => esriCanvas('World_Light_Gray_Base'), []);
+  const esriDarkLabelsProvider = useMemo(() => esriCanvas('World_Dark_Gray_Reference'), []);
+  const esriLightLabelsProvider = useMemo(() => esriCanvas('World_Light_Gray_Reference'), []);
 
   const nlscEmapProvider = useMemo(() => new UrlTemplateImageryProvider({
     url: '/nlsc-wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}',
@@ -145,11 +148,26 @@ export function useImageryProviders() {
     credit: '地質調查及礦業管理中心 · 地質敏感區（山崩與地滑）',
   }), []);
 
+  // Transparent layers, bottom to top — kept above whichever base map is on.
+  const overlayOrder = useMemo(() => [
+    esriDarkLabelsProvider, esriLightLabelsProvider,
+    nlscHillShadeProvider, nlscContourProvider, nlscLandSectProvider, nlscAdminBoundProvider,
+    nlscUrbanPlanProvider, cgsLiquefactionProvider, cgsDebrisProvider,
+    cgsFaultProvider, wraFloodProvider, cgsSlopeProvider,
+  ], [
+    esriDarkLabelsProvider, esriLightLabelsProvider,
+    nlscHillShadeProvider, nlscContourProvider, nlscLandSectProvider, nlscAdminBoundProvider,
+    nlscUrbanPlanProvider, cgsLiquefactionProvider, cgsDebrisProvider,
+    cgsFaultProvider, wraFloodProvider, cgsSlopeProvider,
+  ]);
+
   return {
     osmOrigProvider, osmDarkProvider, osmLightProvider,
+    esriDarkLabelsProvider, esriLightLabelsProvider,
     nlscEmapProvider, nlscPhotoProvider,
     nlscLandSectProvider, nlscContourProvider, nlscHillShadeProvider, nlscAdminBoundProvider,
     nlscUrbanPlanProvider,
     cgsLiquefactionProvider, cgsFaultProvider, wraFloodProvider, cgsDebrisProvider, cgsSlopeProvider,
+    overlayOrder,
   };
 }

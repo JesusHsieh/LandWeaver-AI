@@ -10,8 +10,9 @@ export function useWaterLayer(settings: MapSettings): { waterFeatures: { lat: nu
     const pt = settings.analysisPoint ?? settings.selectedBase ?? { lat: 25.0339, lng: 121.5644 };
     const r = 0.6;
     const bbox = `${pt.lat - r},${pt.lng - r},${pt.lat + r},${pt.lng + r}`;
-    const q = `[out:json][timeout:15];(node["landuse"="reservoir"](${bbox});node["natural"="water"]["name"](${bbox});way["landuse"="reservoir"](${bbox});relation["landuse"="reservoir"](${bbox}););out center 120;`;
-    fetchOverpass<any>(q)
+    const q = `[out:json][timeout:25];(node["landuse"="reservoir"](${bbox});node["natural"="water"]["name"](${bbox});way["landuse"="reservoir"](${bbox});relation["landuse"="reservoir"](${bbox}););out center 120;`;
+    // Large bbox: often needs more than the default 15 s client timeout.
+    fetchOverpass<any>(q, { label: '08G 飲用水', timeoutMs: 30_000 })
       .then(elements => {
         const features = elements.map((el: any) => ({
           lat: el.lat ?? el.center?.lat,

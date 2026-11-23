@@ -16,8 +16,8 @@ export const DecisionBlock: React.FC<DecisionBlockProps> = ({ settings, set }) =
     <LayerRow label="集水水文 Hydrology"    active={settings.showHydrology}     onClick={() => set('showHydrology', !settings.showHydrology)}        accent="#2196F3" />
     <div className="mt-1 mb-0.5" style={{ height: '1px', background: '#222' }} />
     <LayerRow
-      label="景觀／空間策略建議"
-      sub="AI 綜合評估 · 需 API Key"
+      label="場址規則檢核"
+      sub="逐項判讀 · 可複製給 AI 分析"
       active={settings.showLandscapeStrategy}
       onClick={() => set('showLandscapeStrategy', !settings.showLandscapeStrategy)}
       accent="#BCFD49"

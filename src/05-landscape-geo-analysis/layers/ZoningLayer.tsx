@@ -8,6 +8,12 @@ interface ZoningLayerProps {
   landscapeData: LandscapeDesignData | null;
 }
 
+// Inline icon: the Iconify icon this used (material-symbols:square-rounded) now 404s.
+// White square, tinted per zone by the billboard `color`.
+const ZONE_ICON = 'data:image/svg+xml,' + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect x='4' y='4' width='56' height='56' rx='12' fill='white'/></svg>",
+);
+
 function getZoningColor(cat: string): Color {
   switch(cat) {
     case '高熱曝曬區': return Color.ORANGERED;
@@ -52,7 +58,7 @@ export const ZoningLayer: React.FC<ZoningLayerProps> = ({ settings, landscapeDat
       {settings.showZoning && zoningGrid.map((z, i) => (
         <Entity key={`zone-${i}`} position={Cartesian3.fromDegrees(z.lng, z.lat, 10)}>
           <BillboardGraphics
-            image={`https://api.iconify.design/material-symbols:square-rounded.svg?color=${getZoningColor(z.cat).toCssColorString().replace('#', '%23')}`}
+            image={ZONE_ICON}
             width={64}
             height={64}
             scale={0.5}

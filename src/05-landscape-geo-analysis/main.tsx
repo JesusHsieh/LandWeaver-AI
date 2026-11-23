@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import { Ion } from 'cesium';
 import App from './App.tsx';
 import './index.css';
-import ApiKeyManager from '../shared/ApiKeyManager';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
 
 // 初始化 Cesium Ion Token (3D Tiles / 衛星底圖)
@@ -21,7 +20,6 @@ createRoot(rootElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />
-      <ApiKeyManager />
     </ErrorBoundary>
   </React.StrictMode>,
 );

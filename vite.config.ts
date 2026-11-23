@@ -128,6 +128,30 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/tpe-tree/, '/blobfs'),
           secure: true,
         },
+        '/cwa-api': {
+          target: 'https://opendata.cwa.gov.tw',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/cwa-api/, ''),
+          secure: true,
+        },
+        '/epa-api': {
+          target: 'https://data.moenv.gov.tw',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/epa-api/, ''),
+          secure: true,
+        },
+        '/tdx-auth': {
+          target: 'https://tdx.transportdata.tw',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/tdx-auth/, '/auth'),
+          secure: true,
+        },
+        '/tdx-api': {
+          target: 'https://tdx.transportdata.tw',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/tdx-api/, '/api/basic'),
+          secure: true,
+        },
       },
     },
     define: {

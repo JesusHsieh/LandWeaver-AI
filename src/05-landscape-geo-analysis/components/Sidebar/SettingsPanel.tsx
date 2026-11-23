@@ -1,17 +1,9 @@
 import React, { useState } from 'react';
 import { MapSettings } from '../../types';
-import { IMAGE_API_KEY_STORE } from '../../../shared/apiKeyService';
+import { setIonToken } from '../../utils/ionStatus';
 
+// Module 05 不使用 Gemini：場址判讀改為本機規則檢核（services/siteRules.ts）
 const API_FIELDS = [
-  {
-    key: IMAGE_API_KEY_STORE,
-    label: 'Google Gemini API Key',
-    sub: 'AI 景觀策略診斷 · gemini-2.0-flash',
-    placeholder: 'AIzaSy...',
-    url: 'https://aistudio.google.com/apikey',
-    color: '#BCFD49',
-    needsReload: false,
-  },
   {
     key: 'VITE_CWA_API_KEY',
     label: '中央氣象署 CWA',
@@ -37,7 +29,7 @@ const API_FIELDS = [
     placeholder: 'eyJh...',
     url: 'https://ion.cesium.com/tokens',
     color: '#E05A2B',
-    needsReload: true,
+    needsReload: false, // applied on save via setIonToken
   },
   {
     key: 'VITE_TDX_CLIENT_ID',
@@ -106,11 +98,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, settings,
   const tdxIsSet = !!(vals['VITE_TDX_CLIENT_ID']?.trim());
 
   const handleSave = () => {
+    const ionToken = vals['VITE_CESIUM_ION_TOKEN'].trim();
+    const ionChanged = ionToken !== (localStorage.getItem('VITE_CESIUM_ION_TOKEN') ?? '');
     API_FIELDS.forEach(f => {
       const v = vals[f.key].trim();
       if (v) localStorage.setItem(f.key, v);
       else localStorage.removeItem(f.key);
     });
+    // Ion layers re-check the token and reload without a page refresh.
+    if (ionChanged) setIonToken(ionToken || import.meta.env.VITE_CESIUM_ION_TOKEN || '');
     setSaved(true);
     setTimeout(() => { setSaved(false); onClose(); }, 1100);
   };

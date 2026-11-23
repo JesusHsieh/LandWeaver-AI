@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Viewer, Entity, PointGraphics, Cesium3DTileset, ScreenSpaceEventHandler, ScreenSpaceEvent, LabelGraphics } from 'resium';
 import {
   Cartesian3, Cartesian2, Color, JulianDate, ShadowMode,
@@ -22,6 +22,9 @@ import { useElevProfile } from '../hooks/useElevProfile';
 import { useImageryProviders } from '../hooks/useImageryProviders';
 import { useCesiumTerrain } from '../hooks/useCesiumTerrain';
 import { useMapInteractions } from '../hooks/useMapInteractions';
+import { useImageryLayerOrder } from '../hooks/useImageryLayerOrder';
+import { useOsmBuildingsFallback } from '../hooks/useOsmBuildingsFallback';
+import { useIonStatus } from '../utils/ionStatus';
 
 // Layers
 import { BaseImageryLayers } from '../layers/BaseImageryLayers';
@@ -61,6 +64,22 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
   const { elevPts, setElevPts, elevData, setElevData, elevLoading, setElevLoading } = useElevProfile(settings);
 
   const providers = useImageryProviders();
+  useImageryLayerOrder(viewerRef, providers.overlayOrder);
+
+  // Ion assets: only request them with a working token (otherwise they 401 silently),
+  // and keep the resource stable — a new promise each render made resium rebuild the tileset.
+  const ionStatus = useIonStatus();
+  const osmBuildingsUrl = useMemo(() => (ionStatus === 'ok' ? IonResource.fromAssetId(96188) : null), [ionStatus]);
+  const google3DUrl = useMemo(() => (ionStatus === 'ok' ? IonResource.fromAssetId(2275207) : null), [ionStatus]);
+  const osmBuildingsStyle = useMemo(() => new Cesium3DTileStyle({
+    color: `color('hsl(${settings.osmBuildingHue},45%,62%)', ${settings.osmBuildingOpacity})`,
+  }), [settings.osmBuildingHue, settings.osmBuildingOpacity]);
+  useOsmBuildingsFallback(
+    viewerRef,
+    settings.showOsmBuildings && ionStatus === 'invalid',
+    settings.osmBuildingHue,
+    settings.osmBuildingOpacity,
+  );
   const { handleTilesetReady } = useCesiumTerrain(viewerRef, osmTilesetRef, settings);
   const { handleLeftClick } = useMapInteractions(
     viewerRef,
@@ -147,6 +166,8 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
           osmOrigProvider={providers.osmOrigProvider}
           osmDarkProvider={providers.osmDarkProvider}
           osmLightProvider={providers.osmLightProvider}
+          esriDarkLabelsProvider={providers.esriDarkLabelsProvider}
+          esriLightLabelsProvider={providers.esriLightLabelsProvider}
           nlscEmapProvider={providers.nlscEmapProvider}
           nlscPhotoProvider={providers.nlscPhotoProvider}
           nlscLandSectProvider={providers.nlscLandSectProvider}
@@ -192,14 +213,12 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
           </Entity>
         ))}
 
-        {/* OSM 3D Buildings */}
-        {settings.showOsmBuildings && (
+        {/* OSM 3D Buildings (Ion) — without a valid token useOsmBuildingsFallback draws them from Overpass */}
+        {settings.showOsmBuildings && osmBuildingsUrl && (
           <Cesium3DTileset
-            url={IonResource.fromAssetId(96188)}
+            url={osmBuildingsUrl}
             onReady={handleTilesetReady}
-            style={new Cesium3DTileStyle({
-              color: `color('hsl(${settings.osmBuildingHue},45%,62%)', ${settings.osmBuildingOpacity})`,
-            })}
+            style={osmBuildingsStyle}
           />
         )}
 
@@ -214,8 +233,8 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
         )}
 
         {/* Google Photorealistic 3D Tiles */}
-        {settings.showGoogle3DTiles && (
-          <Cesium3DTileset url={IonResource.fromAssetId(2275207)} shadows={settings.showShadows ? ShadowMode.ENABLED : ShadowMode.DISABLED} />
+        {settings.showGoogle3DTiles && google3DUrl && (
+          <Cesium3DTileset url={google3DUrl} shadows={settings.showShadows ? ShadowMode.ENABLED : ShadowMode.DISABLED} />
         )}
 
         {/* Analysis and decision layers — only rendered when analysisPoint is set */}

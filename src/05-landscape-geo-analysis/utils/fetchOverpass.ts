@@ -1,7 +1,9 @@
+// overpass.kumi.systems 已無回應（每次都等到逾時），已移除。
+// overpass-api.de 常回 502/429，所以預設同時競速多個鏡像，取最先成功者。
 export const OVERPASS_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 
 export interface OverpassJson<T = unknown> {
@@ -20,7 +22,7 @@ export interface OverpassOptions {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_RETRY_DELAY_MS = 800;
-const DEFAULT_HEDGE_DELAY_MS = 700;
+const DEFAULT_HEDGE_DELAY_MS = 2_000;
 
 function isAbortSignal(value: AbortSignal | OverpassOptions | undefined): value is AbortSignal {
   return !!value && 'aborted' in value && 'addEventListener' in value;
@@ -113,44 +115,57 @@ function fetchOverpassJsonHedged<T>(
 
     opts.signal?.addEventListener('abort', abortAll, { once: true });
 
-    OVERPASS_MIRRORS.forEach((mirror, i) => {
-      const timer = window.setTimeout(async () => {
+    const launched = new Set<number>();
+    // A mirror that fails fast (502/429) starts the next one right away
+    // instead of leaving it to its hedge timer.
+    const launchNext = () => {
+      const next = OVERPASS_MIRRORS.findIndex((_, j) => !launched.has(j));
+      if (next !== -1) launch(next);
+    };
+
+    const launch = async (i: number) => {
+      if (settled || launched.has(i)) return;
+      launched.add(i);
+      const mirror = OVERPASS_MIRRORS[i];
+      const request = signalWithTimeout(opts.signal, timeoutMs);
+      requests.push(request);
+
+      try {
+        const res = await fetch(mirror, {
+          method: 'POST',
+          body: 'data=' + encodeURIComponent(query),
+          signal: request.signal,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json() as OverpassJson<T>;
+        finish(() => {
+          if (i > 0) console.log(`[OSM] ${label}: 使用備用鏡像 #${i + 1}`);
+          resolve(json);
+        });
+      } catch (e) {
+        request.cleanup();
         if (settled) return;
-        const request = signalWithTimeout(opts.signal, timeoutMs);
-        requests.push(request);
-
-        try {
-          const res = await fetch(mirror, {
-            method: 'POST',
-            body: 'data=' + encodeURIComponent(query),
-            signal: request.signal,
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const json = await res.json() as OverpassJson<T>;
-          finish(() => {
-            if (i > 0) console.log(`[OSM] ${label}: 使用備用鏡像 #${i + 1}`);
-            resolve(json);
-          });
-        } catch (e) {
-          request.cleanup();
-          if (settled) return;
-          if (opts.signal?.aborted) {
-            finish(() => reject(e));
-            return;
-          }
-
-          errors[i] = (e as Error).message;
-          failures += 1;
-          console.warn(
-            `[OSM] ${label} 鏡像 ${i + 1}/${OVERPASS_MIRRORS.length} 失敗:`,
-            errors[i],
-          );
-          if (failures === OVERPASS_MIRRORS.length) {
-            finish(() => reject(new Error(`所有 Overpass 鏡像均失敗 (${label}): ${errors.filter(Boolean).join(' / ')}`)));
-          }
+        if (opts.signal?.aborted) {
+          finish(() => reject(e));
+          return;
         }
-      }, i * hedgeDelayMs);
-      timers.push(timer);
+
+        errors[i] = (e as Error).message;
+        failures += 1;
+        console.warn(
+          `[OSM] ${label} 鏡像 ${i + 1}/${OVERPASS_MIRRORS.length} 失敗:`,
+          errors[i],
+        );
+        if (failures === OVERPASS_MIRRORS.length) {
+          finish(() => reject(new Error(`所有 Overpass 鏡像均失敗 (${label}): ${errors.filter(Boolean).join(' / ')}`)));
+        } else {
+          launchNext();
+        }
+      }
+    };
+
+    OVERPASS_MIRRORS.forEach((_, i) => {
+      timers.push(window.setTimeout(() => launch(i), i * hedgeDelayMs));
     });
   });
 }
@@ -164,7 +179,9 @@ export async function fetchOverpassJson<T = unknown>(
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const retryDelayMs = opts.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
 
-  if (opts.hedgeRequests) {
+  // Racing is the default: trying mirrors one by one meant waiting a full
+  // timeout on each dead mirror, so OSM layers took 20–50 s to appear.
+  if (opts.hedgeRequests !== false) {
     return fetchOverpassJsonHedged<T>(query, opts, label, timeoutMs);
   }
 

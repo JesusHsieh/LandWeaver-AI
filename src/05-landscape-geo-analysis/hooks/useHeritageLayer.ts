@@ -10,8 +10,9 @@ export function useHeritageLayer(settings: MapSettings): { heritageFeatures: { l
     const pt = settings.analysisPoint ?? settings.selectedBase ?? { lat: 25.0339, lng: 121.5644 };
     const r = 0.12;
     const bbox = `${pt.lat - r},${pt.lng - r},${pt.lat + r},${pt.lng + r}`;
-    const q = `[out:json][timeout:15];(node["historic"](${bbox});node["tourism"="museum"](${bbox});node["heritage"](${bbox});way["historic"](${bbox}););out center 200;`;
-    fetchOverpass<any>(q)
+    const q = `[out:json][timeout:25];(node["historic"](${bbox});node["tourism"="museum"](${bbox});node["heritage"](${bbox});way["historic"](${bbox}););out center 200;`;
+    // Dense historic data around Taipei: often needs more than the default 15 s client timeout.
+    fetchOverpass<any>(q, { label: '08H 文化資產', timeoutMs: 30_000 })
       .then(elements => {
         const features = elements.map((el: any) => ({
           lat: el.lat ?? el.center?.lat,

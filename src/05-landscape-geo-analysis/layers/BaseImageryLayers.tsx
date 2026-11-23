@@ -12,6 +12,8 @@ interface BaseImageryLayersProps {
   osmOrigProvider: OpenStreetMapImageryProvider;
   osmDarkProvider: UrlTemplateImageryProvider;
   osmLightProvider: UrlTemplateImageryProvider;
+  esriDarkLabelsProvider: UrlTemplateImageryProvider;
+  esriLightLabelsProvider: UrlTemplateImageryProvider;
   nlscEmapProvider: UrlTemplateImageryProvider;
   nlscPhotoProvider: UrlTemplateImageryProvider;
   nlscLandSectProvider: WebMapTileServiceImageryProvider;
@@ -25,6 +27,8 @@ export const BaseImageryLayers: React.FC<BaseImageryLayersProps> = ({
   osmOrigProvider,
   osmDarkProvider,
   osmLightProvider,
+  esriDarkLabelsProvider,
+  esriLightLabelsProvider,
   nlscEmapProvider,
   nlscPhotoProvider,
   nlscLandSectProvider,
@@ -40,8 +44,17 @@ export const BaseImageryLayers: React.FC<BaseImageryLayersProps> = ({
   return (
     <>
       {/* OSM 2D Imagery */}
+      {/* key per theme: resium's own re-create on an imageryProvider change is racy and
+          could drop every switch after the first, leaving the old theme on screen. */}
       {settings.showOsmImagery && (
-        <ImageryLayer imageryProvider={osmImageryProvider} />
+        <ImageryLayer key={`osm-${settings.baseTheme}`} imageryProvider={osmImageryProvider} />
+      )}
+      {/* DARK / LIGHT 主題的地名標註（Esri Canvas Reference） */}
+      {settings.showOsmImagery && settings.baseTheme === 'DARK' && (
+        <ImageryLayer imageryProvider={esriDarkLabelsProvider} />
+      )}
+      {settings.showOsmImagery && settings.baseTheme === 'LIGHT' && (
+        <ImageryLayer imageryProvider={esriLightLabelsProvider} />
       )}
 
       {/* NLSC 國土測繪電子地圖 (wmts.nlsc.gov.tw · EMAP) */}

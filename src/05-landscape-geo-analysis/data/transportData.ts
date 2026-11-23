@@ -376,13 +376,14 @@ export async function loadTaichungMrtGeometry(): Promise<[number, number][][]> {
  *  紅線=4174828(#FF0000) 橘線=4174827(#FFA500) 環狀輕軌=6826886+6826887(#80B352)
  *
  *  ⚠️ colour 標籤在 relation 上，不在 way 上。
- *  使用 "out geom tags" on relation 直接讀取 member way 的幾何，
- *  並以 relation 的 colour tag 上色，確保三線正確分色。 */
+ *  使用 "out geom" on relation 直接讀取 member way 的幾何，
+ *  並以 relation 的 colour tag 上色，確保三線正確分色。
+ *  （不可用 "out geom tags"：tags 層級不輸出 members，會變成「無路段資料」） */
 export async function loadKaohsiungMrtGeometry(): Promise<MrtWayGroup[]> {
-  // colour 在 relation，故直接查 relation 幾何（out geom tags 會內嵌 member way 幾何）
+  // colour 在 relation，故直接查 relation 幾何（out geom 會內嵌 member way 幾何與 tags）
   const query = `[out:json][timeout:60];
 (relation(4174828);relation(4174827);relation(6826886);relation(6826887););
-out geom tags;`;
+out geom;`;
 
   // OSM 上各線的 colour tag（relation 層級）
   const FALLBACK: Record<number, string> = {
@@ -403,6 +404,7 @@ out geom tags;`;
 
       for (const member of (rel.members || []) as any[]) {
         if (member.type !== 'way' || !member.geometry || seen.has(member.ref)) continue;
+        if (/platform|stop/.test(member.role ?? '')) continue; // 月台 / 停靠點不是路線
         seen.add(member.ref);
         const seg: [number, number][] = (member.geometry as { lat: number; lon: number }[])
           .map(nd => [nd.lon, nd.lat]);

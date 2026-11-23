@@ -1,16 +1,77 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapSettings, MicroClimateData, LandscapeDesignData } from '../types';
 import { exportMd, exportTxt, exportPdf } from '../services/exportService';
-import { StrategyResult } from '../services/strategyService';
+import { RuleCheck, RuleLevel, formatRulesForAI, sortRuleChecks } from '../services/siteRules';
 
 interface RightPanelProps {
   settings: MapSettings;
   microData: MicroClimateData | null;
   landscapeData: LandscapeDesignData | null;
-  strategyData: StrategyResult | null;
-  strategyLoading: boolean;
-  strategyError: string | null;
-  onRetryStrategy: () => void;
+  ruleChecks: RuleCheck[] | null;
+}
+
+/* ── Rule checklist row ── */
+const LEVEL_COLOR: Record<RuleLevel, string> = { 高: '#F44336', 中: '#FF9800', 低: '#C8A84B' };
+
+const RuleRow = ({ check: c }: { check: RuleCheck }) => {
+  const color =
+    c.status === 'hit'  ? LEVEL_COLOR[c.level ?? '低'] :
+    c.status === 'info' ? '#6FA8DC' :
+    c.status === 'pass' ? '#4CAF50' : '#555';
+  const badge =
+    c.status === 'hit'  ? c.level :
+    c.status === 'info' ? '參考' :
+    c.status === 'pass' ? '✓' : '—';
+  const strong = c.status === 'hit' || c.status === 'info';
+  return (
+    <div
+      className="px-2 py-1 rounded text-[10px]"
+      title={`${c.id} · 判準：${c.threshold}${c.note ? `\n${c.note}` : ''}`}
+      style={{
+        background: c.status === 'hit' ? `${color}0F` : '#1A1A1A',
+        border: `1px solid ${c.status === 'hit' ? `${color}33` : '#222'}`,
+      }}
+    >
+      <div className="flex items-start gap-1.5">
+        <span
+          className="shrink-0 w-6 text-center text-[8px] font-bold rounded py-[1px]"
+          style={{ color, background: `${color}1F` }}
+        >
+          {badge}
+        </span>
+        <span className="shrink-0" style={{ color: strong ? '#E0E0E0' : '#777' }}>{c.name}</span>
+        <span className="ml-auto text-right text-[9px]" style={{ color: strong ? '#C8C8C8' : '#666' }}>
+          {c.value}
+        </span>
+      </div>
+      {strong && c.note && (
+        <div className="mt-0.5 pl-[30px] text-[9px] leading-snug" style={{ color: '#888' }}>
+          {c.note}
+          {c.status === 'hit' && <span style={{ color: '#555' }}>（判準 {c.threshold}）</span>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch { /* fall back below (non-secure context / permission denied) */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 /* ── Compact data row ── */
@@ -84,8 +145,23 @@ const windDir = (deg: number) => {
 
 export const RightPanel: React.FC<RightPanelProps> = ({
   settings, microData: data, landscapeData,
-  strategyData, strategyLoading, strategyError, onRetryStrategy,
+  ruleChecks,
 }) => {
+  const [copyState, setCopyState] = useState<'idle' | 'ok' | 'fail'>('idle');
+  useEffect(() => setCopyState('idle'), [ruleChecks]);
+  useEffect(() => {
+    if (copyState === 'idle') return;
+    const t = setTimeout(() => setCopyState('idle'), 2000);
+    return () => clearTimeout(t);
+  }, [copyState]);
+
+  const hitCount = ruleChecks?.filter(c => c.status === 'hit').length ?? 0;
+
+  const handleCopyRules = async () => {
+    if (!ruleChecks || !data || !landscapeData) return;
+    const text = formatRulesForAI(ruleChecks, data, landscapeData, settings.analysisPoint);
+    setCopyState((await copyText(text)) ? 'ok' : 'fail');
+  };
 
   return (
     <aside
@@ -475,106 +551,52 @@ export const RightPanel: React.FC<RightPanelProps> = ({
           </section>
         )}
 
-        {/* ── AI 診斷與建議 ── */}
+        {/* ── 場址規則檢核（本機判讀，不呼叫 AI；複製後自行交給 AI 分析）── */}
         {settings.showLandscapeStrategy && (
           <section>
-            <div className="gis-section-label mb-2 flex items-center gap-1.5">
-              <span>AI · 診斷與建議</span>
-              <span
-                className="text-[8px] px-1.5 py-0.5 rounded font-bold"
-                style={{ background: 'rgba(188,253,73,0.12)', color: '#BCFD49', border: '1px solid rgba(188,253,73,0.25)' }}
-              >
-                AI
-              </span>
+            <div className="gis-section-label mb-2 flex items-center justify-between">
+              <span>Rules · 規則檢核</span>
+              {ruleChecks && (
+                <span
+                  className="text-[8px] px-1.5 py-0.5 rounded font-bold"
+                  style={{ background: 'rgba(188,253,73,0.12)', color: '#BCFD49', border: '1px solid rgba(188,253,73,0.25)' }}
+                >
+                  觸發 {hitCount}/{ruleChecks.length}
+                </span>
+              )}
             </div>
 
             {/* 未點選基地 */}
             {!data && (
               <div className="text-[10px] px-2 py-2 rounded" style={{ background: '#1C1C1C', color: '#555' }}>
-                點選地圖基地後，AI 將自動診斷場址並給出結論與建議
+                點選地圖基地後，逐項列出場址規則檢核結果
               </div>
             )}
 
-            {/* 載入中 */}
-            {data && strategyLoading && (
-              <div className="flex flex-col gap-2 px-2 py-4 items-center">
-                <div className="flex gap-1">
-                  {[0,1,2].map(i => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: '#BCFD49', opacity: 0.8,
-                        animation: `pulse 1s ease-in-out ${i * 0.2}s infinite` }} />
-                  ))}
-                </div>
-                <span className="text-[10px]" style={{ color: '#666' }}>AI 正在診斷場址數據...</span>
+            {/* 場址數據仍在載入 */}
+            {data && !ruleChecks && (
+              <div className="text-[10px] px-2 py-2 rounded" style={{ background: '#1C1C1C', color: '#555' }}>
+                場址數據載入中…
               </div>
             )}
 
-            {/* 錯誤 */}
-            {data && !strategyLoading && strategyError && (
-              <div className="px-2 py-2 rounded mb-2"
-                style={{ background: 'rgba(244,67,54,0.08)', border: '1px solid rgba(244,67,54,0.2)' }}>
-                <div className="text-[9px] mb-1.5" style={{ color: '#F44336' }}>{strategyError}</div>
-                <button onClick={onRetryStrategy}
-                  className="text-[9px] px-2 py-1 rounded hover:opacity-80"
-                  style={{ background: 'rgba(244,67,54,0.15)', color: '#F44336', border: '1px solid rgba(244,67,54,0.3)' }}>
-                  重新生成
-                </button>
-              </div>
-            )}
-
-            {/* AI 診斷結果 */}
-            {data && !strategyLoading && strategyData && (
+            {/* 檢核列表：觸發 → 參考 → 未觸發 → 未判讀 */}
+            {data && ruleChecks && (
               <>
-                {/* 診斷 */}
-                <div className="mb-3">
-                  <div className="text-[9px] font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#F44336' }}>
-                    ◆ 診斷
-                  </div>
-                  <div className="space-y-1">
-                    {strategyData.diagnosis.map((item, i) => (
-                      <div key={i} className="flex gap-2 px-2 py-1.5 rounded text-[10px] leading-relaxed"
-                        style={{ background: 'rgba(244,67,54,0.05)', border: '1px solid rgba(244,67,54,0.12)', color: '#C8C8C8' }}>
-                        <span className="shrink-0" style={{ color: '#F44336', opacity: 0.6 }}>▸</span>
-                        <span>{item}</span>
-                      </div>
-                    ))}
-                  </div>
+                <div className="space-y-1">
+                  {sortRuleChecks(ruleChecks).map(c => <RuleRow key={c.id} check={c} />)}
                 </div>
 
-                {/* 結論 */}
-                <div className="mb-3">
-                  <div className="text-[9px] font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#C8A84B' }}>
-                    ◆ 結論
-                  </div>
-                  <div className="px-3 py-2.5 rounded text-[10px] leading-relaxed"
-                    style={{ background: 'rgba(200,168,75,0.06)', border: '1px solid rgba(200,168,75,0.18)', color: '#D4C080' }}>
-                    {strategyData.conclusion}
-                  </div>
-                </div>
-
-                {/* 建議 */}
-                <div className="mb-2">
-                  <div className="text-[9px] font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#BCFD49' }}>
-                    ◆ 建議
-                  </div>
-                  <div className="space-y-1">
-                    {strategyData.recommendations.map((item, i) => (
-                      <div key={i} className="flex gap-2 px-2 py-1.5 rounded text-[10px] leading-relaxed"
-                        style={{ background: 'rgba(188,253,73,0.04)', border: '1px solid rgba(188,253,73,0.12)', color: '#C8C8C8' }}>
-                        <span className="shrink-0 font-mono text-[9px] mt-0.5" style={{ color: '#BCFD49', opacity: 0.6 }}>
-                          {String(i + 1).padStart(2, '0')}
-                        </span>
-                        <span>{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <button onClick={onRetryStrategy}
-                  className="w-full text-[9px] py-1.5 rounded mt-1 hover:opacity-70 transition-opacity"
-                  style={{ background: '#181818', color: '#444', border: '1px solid #222' }}>
-                  重新生成
+                <button
+                  onClick={handleCopyRules}
+                  className="gis-action-btn gis-action-ghost w-full mt-2"
+                  style={copyState === 'ok' ? { color: '#4CAF50' } : copyState === 'fail' ? { color: '#F44336' } : undefined}
+                >
+                  {copyState === 'ok' ? '已複製 ✓' : copyState === 'fail' ? '複製失敗' : '複製檢核表（貼給 AI 分析）'}
                 </button>
+                <div className="text-[8px] mt-1" style={{ color: '#444' }}>
+                  本機規則判讀 · 不呼叫 AI、不耗 API 額度
+                </div>
               </>
             )}
           </section>

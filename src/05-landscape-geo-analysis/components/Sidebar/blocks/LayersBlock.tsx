@@ -1,22 +1,29 @@
 import React from 'react';
 import { MapSettings } from '../../../types';
 import { Section, LayerRow } from '../ui/SectionGroup';
+import { useIonStatus } from '../../../utils/ionStatus';
+
+const WARN = '#C8913A';
 
 interface LayersBlockProps {
   settings: MapSettings;
   set: (key: keyof MapSettings, value: unknown) => void;
 }
 
-export const LayersBlock: React.FC<LayersBlockProps> = ({ settings, set }) => (
+export const LayersBlock: React.FC<LayersBlockProps> = ({ settings, set }) => {
+  // Without a working Cesium Ion token: Google 3D cannot load; buildings and terrain fall back.
+  const ionInvalid = useIonStatus() === 'invalid';
+  return (
   <Section label="▸ Layers · 基礎圖層">
     {/* Google / OSM */}
     <LayerRow label="Google Earth 實景 3D"
-      sub="Cesium Ion · 全球攝影測量"
+      sub={ionInvalid ? '需有效 Cesium Ion Token · 請至 ⚙ 設定填入' : 'Cesium Ion · 全球攝影測量'}
+      subColor={ionInvalid ? WARN : undefined}
       active={settings.showGoogle3DTiles}
       onClick={() => set('showGoogle3DTiles', !settings.showGoogle3DTiles)}
       accent="#4285F4" />
     <LayerRow label="OSM 2D 平面地圖"
-      sub="openstreetmap.org"
+      sub={settings.baseTheme === 'OSM' ? 'openstreetmap.org' : 'Esri Canvas · OSM 資料'}
       active={settings.showOsmImagery}
       onClick={() => set('showOsmImagery', !settings.showOsmImagery)}
       accent="#7EBC6F" />
@@ -36,7 +43,8 @@ export const LayersBlock: React.FC<LayersBlockProps> = ({ settings, set }) => (
       ))}
     </div>
     <LayerRow label="OSM 3D 建築模型"
-      sub="Ion 96188 · 需開啟地形才貼合"
+      sub={ionInvalid ? '無 Ion Token · 改用 Overpass 建物（畫面中心 600m）' : 'Ion 96188 · 需開啟地形才貼合'}
+      subColor={ionInvalid ? WARN : undefined}
       active={settings.showOsmBuildings}
       onClick={() => set('showOsmBuildings', !settings.showOsmBuildings)}
       accent={`hsl(${settings.osmBuildingHue},45%,62%)`} />
@@ -89,7 +97,8 @@ export const LayersBlock: React.FC<LayersBlockProps> = ({ settings, set }) => (
       </div>
     </div>
     <LayerRow label="地貌起伏 Terrain"
-      sub="Cesium World Terrain · SRTM-based"
+      sub={ionInvalid ? '無 Ion Token · 改用 Esri World Elevation' : 'Cesium World Terrain · SRTM-based'}
+      subColor={ionInvalid ? WARN : undefined}
       active={settings.showTerrain}
       onClick={() => set('showTerrain', !settings.showTerrain)}
       accent="#A0522D" />
@@ -146,4 +155,5 @@ export const LayersBlock: React.FC<LayersBlockProps> = ({ settings, set }) => (
       尚未提供 CesiumJS TerrainProvider
     </div>
   </Section>
-);
+  );
+};

@@ -18,7 +18,7 @@
 | 02 | Phase 1 · 概念發展 | **景觀建築平面魔法師** | 上傳基地平面圖，AI 渲染景觀配置、生成多角度場景並輸出專業簡報 |
 | 03 | Phase 1 · 概念發展 | **空間與照片 AI 合成** | 上傳現場照片，在 2D 平面圖上配置景觀元素，AI 精準合成至真實場景 |
 | 04 | Phase 1 · 概念發展 | **平面配置圖 AI 3D 模擬** | 上傳平面圖，標記視點與方向，AI 生成 3D 透視模擬效果圖 |
-| 05 | Phase 2 · 基地分析 | **景觀地理分析 AI** | 整合 3D 地球儀、日照模擬、微氣候分析與景觀決策引擎，點選基地即時獲取真實氣象、空品、高程、都市計畫分區與植栽建議 |
+| 05 | Phase 2 · 基地分析 | **景觀地理分析 AI** | 整合 3D 地球儀、日照模擬、微氣候分析與景觀決策引擎，點選基地即時獲取真實氣象、空品、高程、都市計畫分區與植栽建議，並產生場址規則檢核表（可一鍵複製給 AI 分析；本模組不呼叫 AI、不需 Gemini Key） |
 | 06 | Phase 3 · 法規計算 | **綠化法規計算機** | 支援台北市 / 新北市綠化自治法規計算（第 5、7、8、9、12 條），含即時試算、喬木棵數計算與查核清單 |
 
 ---
@@ -42,7 +42,7 @@ cp .env.example .env.local
 `.env.local` 需填入：
 
 ```env
-# 必填 — 所有模組皆需要
+# Module 01–04（AI 生圖 / 渲染）需要；Module 05、06 不需要
 GEMINI_API_KEY=your_gemini_api_key_here
 
 # Module 05 專用（選填，有則使用真實資料，無則估算）
@@ -51,17 +51,22 @@ VITE_CWA_API_KEY=your_cwa_api_key_here             # 中央氣象署（備用，
 VITE_EPA_API_KEY=your_epa_api_key_here             # 環境部 PM2.5 / AQI
 VITE_TDX_CLIENT_ID=your_tdx_client_id             # 交通部 TDX（捷運列車動態）
 VITE_TDX_CLIENT_SECRET=your_tdx_client_secret
+VITE_API_PROXY_BASE_URL=                           # Optional: static hosts can point to Vercel proxy
 ```
 
 | Key | 申請來源 | 費用 | 必填 |
 |-----|---------|------|------|
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) | 免費 | ✅ |
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) | 免費額度很少，用完需開通付費（與 Google AI Pro 訂閱無關） | Module 01–04 必填 |
 | `VITE_CESIUM_ION_TOKEN` | [Cesium Ion](https://ion.cesium.com/tokens) | 免費 | 選填 |
 | `VITE_CWA_API_KEY` | [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/userLogin) | 免費 | 選填 |
 | `VITE_EPA_API_KEY` | [環境部資料開放平臺](https://data.moenv.gov.tw/) | 免費 | 選填 |
 | `VITE_TDX_CLIENT_ID/SECRET` | [TDX 運輸資料流通服務](https://tdx.transportdata.tw/) | 免費 | 選填 |
+| `VITE_API_PROXY_BASE_URL` | Vercel proxy origin | 免費 | 靜態部署選填 |
 
-> **免 Key 也能用**：Open-Meteo（氣象）、PVGIS-ERA5（日照）、Open-Elevation（地形）、NLSC（都市計畫）均為公開 API，無需任何 Key。
+> **免 Key 也能用**：Open-Meteo（氣象 / 地形）、PVGIS-ERA5（日照）、NLSC（都市計畫）、Esri（暗色 / 亮色底圖、地形備援）均為公開 API，無需任何 Key。Module 05 不填任何 Key 也能完整運作，只有 PM2.5 會標示「未判讀」。
+
+> **⚠️ 待處理 — Cesium Ion Token**：目前未設定 `VITE_CESIUM_ION_TOKEN`，Google Earth 3D / OSM 3D 建築 / 地形 用的是 Cesium 內建的評估用 token。它隨 Cesium 版本更換，約半年就會失效（1.140 的已於 2026-11 失效，暫以升級至 1.147 恢復）。失效時地形自動改用 Esri、OSM 3D 改用 Overpass 建物，但 **Google 3D 會停用**。
+> 長期解法：在 [ion.cesium.com](https://ion.cesium.com/tokens) 申請免費 token → 設為 Vercel 環境變數 `VITE_CESIUM_ION_TOKEN` 後重新部署（建議在 Ion 限制只允許自己的網域）。
 
 ### 3. 啟動開發伺服器
 
@@ -115,18 +120,18 @@ LandWeaver-AI/
 │   │   │   ├── recommendEngine.ts        # 景觀建議 / 植栽推薦邏輯
 │   │   │   ├── zoningTable.ts            # 分區法規查表
 │   │   │   ├── solarCalc.ts              # 太陽位置純計算
-│   │   │   ├── strategyService.ts        # AI 景觀策略生成
+│   │   │   ├── siteRules.ts              # 場址規則檢核（本機判讀，不呼叫 AI）
 │   │   │   ├── tdxService.ts             # TDX 交通資料
 │   │   │   └── exportService.ts          # PDF / MD / TXT 報告匯出
-│   │   ├── hooks/                        # 12 個功能 hook（地圖互動/圖層/地形）
+│   │   ├── hooks/                        # 14 個功能 hook（地圖互動/圖層/地形/圖層排序/OSM 建物備援）
 │   │   ├── transport/                    # 交通圖層拆分（rail route / train / YouBike）
 │   │   ├── layers/                       # Cesium 圖層元件（基礎/法規/分析/道路POI）
 │   │   ├── components/
 │   │   │   ├── MapControl.tsx            # CesiumJS 3D 地球儀（組裝層）
 │   │   │   ├── Sidebar/                  # 圖層控制側欄（blocks / ui 拆分）
-│   │   │   ├── RightPanel.tsx            # 即時數據面板 + AI 決策輸出
+│   │   │   ├── RightPanel.tsx            # 即時數據面板 + 場址規則檢核（複製給 AI）
 │   │   │   └── TransportCesiumLayer.tsx  # 交通動態圖層（facade）
-│   │   ├── utils/                        # fetchOverpass（hedging）/ withTimeout / fetchJson / geo
+│   │   ├── utils/                        # fetchOverpass（hedging）/ withTimeout / fetchJson / geo / ionStatus / terrainSource
 │   │   └── data/transportData.ts         # 台灣六大捷運 + 高鐵 + 台鐵路線資料
 │   └── 06-taipei-greenery-calc/          # Module 06 · 綠化法規計算機
 │       ├── App.tsx                       # 主介面、城市切換（台北市 / 新北市）
@@ -137,7 +142,7 @@ LandWeaver-AI/
 │       ├── hooks/                        # state hooks（useGreeneryCalc / useNewTaipeiCalc）
 │       ├── sections/                     # 各法條輸入與輸出區塊
 │       └── components/                  # 共用 UI 元件
-├── api/proxy/[...path].ts               # Vercel Edge Function — 12 路 API CORS Proxy
+├── api/proxy.ts                         # Vercel Edge Function — 17 路 API CORS Proxy（vercel.json 以 ?__route=&__path= 轉入）
 ├── vercel.json                          # Vercel 部署設定（build + rewrites）
 ├── vite.config.ts                       # MPA 多頁入口 + 12 路 API Proxy（含 WMS 快取）
 └── .env.example
@@ -155,7 +160,7 @@ LandWeaver-AI/
 | 氣溫、濕度、風速、降雨 | 中央氣象署 CWA | 需要 | Open-Meteo 失敗時備用，最近觀測站 |
 | PM2.5、AQI | 環境部 EPA | 需要 | 即時空氣品質測站，Haversine 最近站 |
 | 年輻射量、月輻射、峰值日照 | **EU PVGIS-ERA5** | 不需要 | 歐盟太陽能資料庫，ERA5 全球覆蓋含台灣 |
-| 高程、坡度、坡向、排水係數 | **Open-Elevation** | 不需要 | DEM 5 點取樣，計算坡度梯度與平面曲率 |
+| 高程、坡度、坡向、排水係數 | **Open-Meteo Elevation** | 不需要 | DEM 5 點取樣，計算坡度梯度與平面曲率 |
 | 縣市鄉鎮行政區 | 國土測繪中心 NLSC | 不需要 | TownVillagePointQuery REST API |
 | 都市計畫分區 | 國土測繪中心 WMS | 不需要 | GetMap 3×3px 像素取樣 → RGB 比對 LUIMAP 色碼 |
 | 容積率 / 建蔽率法規 | NLSC WFS | 不需要 | 依都市計畫分區代碼對照台灣建築法規查表 |
@@ -168,7 +173,11 @@ LandWeaver-AI/
 | 捷運 / 高鐵 / 台鐵路線 | 內建靜態資料 | 不需要 | 六大捷運系統 + 高鐵 + 台鐵路線幾何 |
 | 捷運列車動態 | TDX 交通部 | 需要 | LiveBoard 即時班次，無 Key 則停用 |
 | 太陽方位角 / 高度角 | 天文公式 | 不需要 | 即時計算，無需外部 API |
-| AI 場址診斷 + 景觀策略 | AI model | 需要 | 以真實場址數據生成三段式分析報告 |
+| 底圖 OSM / 暗色 / 亮色 | OpenStreetMap / **Esri Canvas** | 不需要 | 暗色、亮色改用 Esri（CARTO 已改為需 Key），含地名標註；最高縮放 level 16 |
+| 3D 地形 | Cesium World Terrain → **Esri World Elevation 3D** | Ion（選填） | Ion token 無效時自動改用 Esri 地形 |
+| 3D 建物 | Cesium OSM Buildings → **Overpass 建物輪廓** | Ion（選填） | Ion 無效時改以 OSM `height` / `building:levels` 擠出畫面中心 600 m 內建物 |
+| Google Earth 3D | Cesium Ion（Google Photorealistic 3D Tiles） | Ion（必要） | 無有效 token 時停用，側欄會顯示提示 |
+| 場址規則檢核 | 本機規則 | 不需要 | 坡度、積水、地表溫度、風、日照、PM2.5 等逐項對照判準；可一鍵複製 Markdown 表格貼給任一 AI 分析 |
 
 ### 景觀決策引擎說明
 
@@ -188,10 +197,49 @@ LandWeaver-AI/
 
 **土壤滲透 / 水文**
 
-- `drainageCoeff`：由 Open-Elevation 坡度推算（Rational Method C 值）
+- `drainageCoeff`：由 Open-Meteo Elevation 坡度推算（Rational Method C 值）
 - `waterloggingRisk`：坡度 × 濕度（humidity > 80% 即使少雨仍判高風險）
 - `pondingDepth`：rainfall × 5 + humidityIndex × 25（台北高濕 vs 高雄乾燥明顯差異）
 - `catchmentArea`：SCA 公式（D∞ 近似），結合 Plan Curvature（Laplacian）
+
+**場址規則檢核（13 項）**
+
+點選基地並開啟「場址規則檢核」後，右側面板逐項列出結果（觸發 → 參考 → 未觸發 → 未判讀）。按「複製檢核表」會複製 Markdown（座標、分區、當下氣象、資料來源 + 完整表格），可直接貼給任一 AI 分析。
+
+| 類別 | 項目 | 判準 |
+|------|------|------|
+| 地形 | 坡度 | ≥15% 中 · ≥30% 高 |
+| 地形 | 地表曲率 | 凹地（> 0，聚水）觸發 |
+| 地形 | 海拔 | ≥500 m |
+| 水文 | 積水風險 | 中 / 高 |
+| 熱環境 | 地表溫度 | >35°C 中 · >40°C 高 |
+| 風環境 | 平均風速 / 坡地下衝風 / 街谷效應 | ≥5 m/s · 風速 >5 m/s 且坡度 >10% · 風速 <3 m/s 的平坦低地 |
+| 日照 | 日照峰值 | <3.2 h/d 低 · <2.5 h/d 中 |
+| 空氣 | PM2.5 | >35 µg/m³ 中 · >54 µg/m³ 高；無 EPA 即時資料則「未判讀」 |
+| 參考 | 微氣候分區 / 太陽能潛力 / 土地使用分區（建蔽率、容積率） | 僅列出，不判定 |
+
+### Module 05 已知限制與待辦
+
+**資料未進入檢核表 / 報告**
+- [ ] 08B–08H 災害與法規圖層僅能疊圖，點選基地不會判斷是否位於淹水、液化、土石流、斷層、山坡地、飲用水保護區、文資範圍內（NLSC WMS 不支援 GetFeatureInfo，其他機關需逐一確認）
+- [ ] PM2.5 無免 Key 來源：未設定 `VITE_EPA_API_KEY` 時為「未判讀」（可評估改接 Open-Meteo Air Quality 作備援，屬模式估算值）
+- [ ] 緩衝區（100–800 m）只畫圈，未統計圈內綠覆、建物密度、行道樹、最近捷運站、生活機能 POI
+- [ ] 「NDVI」圖層實為 OSM 公園 / 林地標籤，非衛星植生指數
+- [ ] 土壤入滲、排水係數為坡度與氣象推估公式，未接真實土壤圖
+
+**功能缺口**
+- [ ] 地址 / 地名搜尋
+- [ ] 基地範圍（多邊形）繪製與面積量測（目前僅單點分析 + 兩點距離）
+- [ ] 分享連結、儲存基地、多基地比較
+- [ ] 匯出報告（PDF / .md / .txt）未含規則檢核表；報告與面板的「AI 植栽建議」實為規則產生
+- [ ] 植栽資料庫僅十餘種
+- [ ] 微氣候分區圖層 9 格為座標種子示意資料（9 格結果相同）
+- [ ] 手機版版面（左右面板固定寬度）
+
+**維運**
+- [ ] 設定自己的 Cesium Ion token（見上方「待處理」）
+- [ ] 自動化測試（規則檢核、分區判定等純函式優先）
+- [ ] 不透水面圖層的 `heightReference` 警告
 
 ---
 
@@ -316,7 +364,18 @@ LandWeaver-AI/
 - **`gisService.ts` In-Flight 去重 + LRU Cache**：同一座標的第二次點擊直接命中 Promise 快取，不重複打 NLSC API；LRU 上限 60 條目，`prefetchZone()` 與氣象請求並行消除串接延遲
 - **`nlscClient.ts` 像素加權投票**：LUIMAP 分區偵測改為 9×9px 中心加權 × 顏色距離倒數投票，顯著降低邊界跨區誤判率
 - **日期選擇器**：底部工具列新增日期欄位，可模擬任意日期（非僅今日）的太陽高度角與日照路徑，夏至冬至一鍵切換
-- **Vercel Edge Proxy 完整化** (`api/proxy/[...path].ts`)：12 路 API 全數納入（NLSC/CGS/WRA/SWCB/MOENV/NCDR/PVGIS/Open-Elevation），含 tile `s-maxage=3600` CDN 快取、OPTIONS preflight、上游 CORS 標頭覆寫
+- **Vercel Edge Proxy 完整化** (`api/proxy/[...path].ts`)：17 路 API 全數納入（NLSC/CGS/WRA/SWCB/MOENV/NCDR/PVGIS/Open-Elevation/Taipei Tree/CWA/EPA/TDX），含 tile `s-maxage=3600` CDN 快取、OPTIONS preflight、上游 CORS 標頭覆寫
+
+### v9.0 — Module 05 線上修復 + 3D 備援 + 移除 Gemini
+- **Vercel Proxy 路由修正**：`api/proxy/[...path].ts` → `api/proxy.ts`，`vercel.json` 改以 `?__route=&__path=` 轉入，修正線上版 proxy 路由失效；Vite dev proxy 補上 CWA / EPA / TDX；新增 `VITE_API_PROXY_BASE_URL` 供靜態部署指向 Vercel proxy
+- **Overpass 穩定化**：移除已失效的 kumi 鏡像、改加 mail.ru 鏡像；hedging 改為「失敗立即換下一個鏡像」，08G / 08H 逾時放寬至 30 秒
+- **YouBike 修正**：台北市 JSON 改欄位名（`latitude` / `available_rent_bikes`…），新舊格式皆可讀，丟棄無效座標避免 Cesium 停止渲染
+- **高捷路線修正**：Overpass 改用 `out geom`（`out geom tags` 不含 relation 成員），略過月台 / 停靠點成員
+- **底圖修正**：暗色 / 亮色改用 Esri Canvas（CARTO 已需 Key）並加地名標註；切換主題或重開底圖後，疊加圖層（等高線、地籍、災害…）維持在上層（`useImageryLayerOrder`）；主題切換以 `key` 重建圖層，避開 resium 只生效一次的問題
+- **Cesium 1.140 → 1.147**：舊版內建 Ion token 已被撤銷，升級後 Google 3D / OSM 3D / 地形恢復
+- **Ion 失效自動備援**（`utils/ionStatus.ts`）：啟動時檢查 token；無效時地形改用 Esri World Elevation 3D、OSM 3D 建物改用 Overpass 輪廓（`useOsmBuildingsFallback`，跟隨畫面中心載入），Google 3D 停用並在側欄提示；⚙ 設定填入新 token 免重新整理即生效
+- **分區圖示**：Iconify 圖示 404，改為內嵌 SVG
+- **移除 Gemini**：刪除 `strategyService.ts`、🔑 API Key 按鈕與設定欄位；改為本機「場址規則檢核」（`services/siteRules.ts`），13 項逐項判讀，可一鍵複製 Markdown 表格交給任一 AI 分析，Module 05 不再消耗任何 AI 額度
 
 ---
 

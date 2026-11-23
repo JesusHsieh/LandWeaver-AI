@@ -119,6 +119,32 @@ export async function fetchThsrDailyTimetable(): Promise<ThsrDailyTrain[]> {
   return data?.TrainTimetables ?? [];
 }
 
+const toNum = (...vals: unknown[]): number => {
+  for (const v of vals) {
+    const n = typeof v === 'string' ? parseFloat(v) : (v as number);
+    if (typeof n === 'number' && Number.isFinite(n)) return n;
+  }
+  return NaN;
+};
+
+/**
+ * 台北市 YouBike JSON 已改欄位名（latitude/longitude/Quantity/available_*），
+ * 舊欄位（lat/lng/tot/sbi/bemp）讀不到會變成 NaN 座標，讓 Cesium 整個停止渲染。
+ * 兩種格式都接受，並丟掉座標無效的站點。
+ */
+function normalizeYouBikeStation(raw: any): YouBikeStation {
+  return {
+    sno:   String(raw?.sno ?? ''),
+    sna:   String(raw?.sna ?? ''),
+    sarea: String(raw?.sarea ?? ''),
+    lat:   toNum(raw?.latitude, raw?.lat),
+    lng:   toNum(raw?.longitude, raw?.lng),
+    tot:   toNum(raw?.Quantity, raw?.total, raw?.tot),
+    sbi:   toNum(raw?.available_rent_bikes, raw?.sbi),
+    bemp:  toNum(raw?.available_return_bikes, raw?.bemp),
+  };
+}
+
 /** YouBike 2.0 站點即時資料（台北市，無需 API Key） */
 export async function fetchYouBikeStations(): Promise<YouBikeStation[]> {
   try {
@@ -126,7 +152,14 @@ export async function fetchYouBikeStations(): Promise<YouBikeStation[]> {
       'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json'
     );
     if (!res.ok) throw new Error(`YouBike ${res.status}`);
-    return res.json();
+    const raw = await res.json();
+    if (!Array.isArray(raw)) throw new Error('YouBike 回傳格式不是陣列');
+    const stations = raw.map(normalizeYouBikeStation)
+      .filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.lat !== 0 && s.lng !== 0);
+    if (stations.length < raw.length) {
+      console.warn(`[YouBike] 略過 ${raw.length - stations.length} 個座標無效的站點`);
+    }
+    return stations;
   } catch (e) {
     console.warn('[YouBike] 站點資料取得失敗:', e);
     return [];

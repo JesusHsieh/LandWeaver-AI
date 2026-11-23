@@ -38,7 +38,8 @@ export function useYouBikeLayer(
 
       const pts = new PointPrimitiveCollection();
       stations.forEach((s: YouBikeStation) => {
-        const ratio = s.sbi / Math.max(1, s.tot);
+        const tot = Number.isFinite(s.tot) ? s.tot : 0;
+        const ratio = Number.isFinite(s.sbi) ? s.sbi / Math.max(1, tot) : 0;
         const color = ratio > 0.5
           ? Color.fromBytes(76, 175, 80, 200)
           : ratio > 0.2
@@ -47,7 +48,7 @@ export function useYouBikeLayer(
 
         pts.add({
           position:    Cartesian3.fromDegrees(s.lng, s.lat, 2),
-          pixelSize:   Math.max(5, Math.min(14, s.tot * 0.15)),
+          pixelSize:   Math.max(5, Math.min(14, tot * 0.15)),
           color,
           outlineColor: Color.WHITE.withAlpha(0.55),
           outlineWidth: 1,

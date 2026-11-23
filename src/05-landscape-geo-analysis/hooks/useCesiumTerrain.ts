@@ -1,6 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react';
 import {
-  createWorldTerrainAsync,
   EllipsoidTerrainProvider,
   Matrix4,
   Cartographic,
@@ -8,18 +7,21 @@ import {
   sampleTerrainMostDetailed,
 } from 'cesium';
 import { MapSettings } from '../types';
+import { createTerrainProvider } from '../utils/terrainSource';
+import { useIonStatus } from '../utils/ionStatus';
 
 export function useCesiumTerrain(
   viewerRef: React.RefObject<any>,
   osmTilesetRef: React.RefObject<any>,
   settings: MapSettings
 ) {
-  // A hidden WorldTerrain provider kept only for height-sampling — never assigned to viewer
+  // A hidden terrain provider (World Terrain, or Esri without Ion) kept only for height-sampling — never assigned to viewer
   const terrainSamplerRef = useRef<any>(null);
+  const ionStatus = useIonStatus();
 
   // Load the sampler terrain once on mount so we can always know the real ground height
   useEffect(() => {
-    createWorldTerrainAsync()
+    createTerrainProvider()
       .then(tp => { terrainSamplerRef.current = tp; })
       .catch(() => {});
   }, []);
@@ -50,20 +52,26 @@ export function useCesiumTerrain(
     }
   }, [osmTilesetRef]);
 
-  // ── Effect A — Terrain provider switching (only depends on settings.showTerrain) ──
+  // ── Effect A — Terrain provider switching ─────────────────────────────────
+  // Waits for the Ion check so an invalid token falls back to Esri instead of
+  // failing silently; re-runs if a token saved in ⚙ 設定 changes the result.
   useEffect(() => {
     if (!viewerRef.current) return;
     const viewer = viewerRef.current.cesiumElement;
     if (!viewer) return;
 
-    if (settings.showTerrain) {
-      createWorldTerrainAsync()
-        .then(tp => { viewer.terrainProvider = tp; })
-        .catch(e => { console.error('無法載入地形', e); });
-    } else {
+    if (!settings.showTerrain) {
       viewer.terrainProvider = new EllipsoidTerrainProvider();
+      return;
     }
-  }, [settings.showTerrain]); // ONLY this dependency
+    if (ionStatus === 'checking') return;
+
+    let cancelled = false;
+    createTerrainProvider()
+      .then(tp => { if (!cancelled) viewer.terrainProvider = tp; })
+      .catch(e => { console.error('無法載入地形', e); });
+    return () => { cancelled = true; };
+  }, [settings.showTerrain, ionStatus]);
 
   // ── Effect B — OSM buildings vertical offset ──────────────────────────────
   // Re-run whenever analysis point changes OR terrain changes OR tileset becomes ready
