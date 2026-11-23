@@ -144,9 +144,9 @@ export interface MapSettings {
   showMrtLayer: boolean;           // 台北捷運路線 + 站點
   showMrtTrains: boolean;          // 捷運列車動態 (TDX LiveBoard)
   showThsrLayer: boolean;          // 高鐵路線 + 站點
-  showThsrTrains: boolean;         // 高鐵列車動態 (時刻表模擬)
+  showThsrTrains: boolean;         // 高鐵列車即時位置 (TDX 時刻表，沿軌道移動)
   showTRALayer: boolean;           // 台鐵路線 + 站點
-  showTRATrains: boolean;          // 台鐵列車動態 (TDX 時刻表模擬)
+  showTRATrains: boolean;          // 台鐵列車即時位置 (TDX 時刻表 + 即時誤點，沿軌道移動)
   showTaoyuanMrtLayer: boolean;    // 桃捷路線 + 站點
   showTaoyuanMrtTrains: boolean;   // 桃捷列車動態 (TDX LiveBoard)
   showTaichungMrtLayer: boolean;   // 中捷路線 + 站點

@@ -95,6 +95,11 @@ export const TransportBlock: React.FC<TransportBlockProps> = ({ settings, set, o
       active={settings.showThsrLayer}
       onClick={() => set('showThsrLayer', !settings.showThsrLayer)}
       accent="#DC3232" />
+    <LayerRow label="列車即時位置"
+      sub="TDX 時刻表 · 沿軌道移動"
+      active={settings.showThsrTrains}
+      onClick={() => set('showThsrTrains', !settings.showThsrTrains)}
+      accent="#FF5252" />
 
     {/* ── 台鐵 TRA ── */}
     <div className="text-[8px] font-bold mt-2 mb-1 px-0.5 tracking-widest" style={{ color: '#666' }}>台鐵 TRA</div>
@@ -103,6 +108,11 @@ export const TransportBlock: React.FC<TransportBlockProps> = ({ settings, set, o
       active={settings.showTRALayer}
       onClick={() => set('showTRALayer', !settings.showTRALayer)}
       accent="#3A7BD5" />
+    <LayerRow label="列車即時位置"
+      sub="時刻表 + 即時誤點 · 橘對號 藍區間"
+      active={settings.showTRATrains}
+      onClick={() => set('showTRATrains', !settings.showTRATrains)}
+      accent="#F59E0B" />
 
     {/* ── 桃園捷運 ── */}
     <div className="text-[8px] font-bold mt-2 mb-1 px-0.5 tracking-widest" style={{ color: '#666' }}>桃園捷運 TYMC</div>
@@ -133,7 +143,7 @@ export const TransportBlock: React.FC<TransportBlockProps> = ({ settings, set, o
       className="mt-2 text-[9px] px-2 py-1.5 rounded flex items-center justify-between"
       style={{ background: 'rgba(255,111,0,0.06)', border: '1px solid rgba(255,111,0,0.15)' }}
     >
-      <span style={{ color: '#666' }}>列車動態需 TDX API Key</span>
+      <span style={{ color: '#666' }}>捷運列車需 TDX Key；高鐵、台鐵免 Key（次數有限）</span>
       <button
         onClick={onOpenSettings}
         className="text-[8px] px-1.5 py-0.5 rounded hover:opacity-80"

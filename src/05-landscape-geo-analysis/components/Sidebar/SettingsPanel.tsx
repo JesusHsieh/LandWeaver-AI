@@ -69,18 +69,19 @@ const API_FIELDS = [
   },
 ] as const;
 
-/** TDX 列車動態開關清單（需 TDX Key） */
+/** TDX 列車動態開關清單；高鐵、台鐵未填 Key 也能用（TDX 匿名查詢，每日次數有限） */
 const TDX_TRAIN_TOGGLES: {
   key: keyof MapSettings;
   label: string;
   color: string;
+  needsKey: boolean;
 }[] = [
-  { key: 'showMrtTrains',          label: '北捷列車',  color: '#FFD600' },
-  { key: 'showThsrTrains',         label: '高鐵列車',  color: '#FF8A80' },
-  { key: 'showTRATrains',          label: '台鐵列車',  color: '#60A5FA' },
-  { key: 'showTaoyuanMrtTrains',   label: '桃捷列車',  color: '#C4B5FD' },
-  { key: 'showTaichungMrtTrains',  label: '中捷列車',  color: '#86EFAC' },
-  { key: 'showKaohsiungMrtTrains', label: '高捷列車',  color: '#FCA5A5' },
+  { key: 'showMrtTrains',          label: '北捷列車',  color: '#FFD600', needsKey: true },
+  { key: 'showThsrTrains',         label: '高鐵列車',  color: '#FF5252', needsKey: false },
+  { key: 'showTRATrains',          label: '台鐵列車',  color: '#F59E0B', needsKey: false },
+  { key: 'showTaoyuanMrtTrains',   label: '桃捷列車',  color: '#C4B5FD', needsKey: true },
+  { key: 'showTaichungMrtTrains',  label: '中捷列車',  color: '#86EFAC', needsKey: true },
+  { key: 'showKaohsiungMrtTrains', label: '高捷列車',  color: '#FCA5A5', needsKey: true },
 ];
 
 interface SettingsPanelProps {
@@ -185,13 +186,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, settings,
             </div>
             {!tdxIsSet && (
               <span className="text-[8px] px-1 rounded" style={{ background: 'rgba(255,111,0,0.12)', color: '#FF9800' }}>
-                需先填入 TDX Key
+                捷運需 TDX Key
               </span>
             )}
           </div>
           <div className="grid grid-cols-2 gap-1">
-            {TDX_TRAIN_TOGGLES.map(({ key, label, color }) => {
+            {TDX_TRAIN_TOGGLES.map(({ key, label, color, needsKey }) => {
               const on = settings[key] as boolean;
+              const usable = tdxIsSet || !needsKey;
               return (
                 <button
                   key={key}
@@ -200,10 +202,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, settings,
                   style={{
                     background: on ? color + '18' : '#111',
                     border: `1px solid ${on ? color + '55' : '#222'}`,
-                    opacity: tdxIsSet ? 1 : 0.45,
-                    cursor: tdxIsSet ? 'pointer' : 'not-allowed',
+                    opacity: usable ? 1 : 0.45,
+                    cursor: usable ? 'pointer' : 'not-allowed',
                   }}
-                  disabled={!tdxIsSet}
+                  disabled={!usable}
                 >
                   <span
                     className="w-2 h-2 rounded-full shrink-0"
@@ -218,7 +220,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, settings,
           </div>
           {!tdxIsSet && (
             <div className="text-[8px] mt-2" style={{ color: '#444' }}>
-              填入 TDX Client ID &amp; Secret 後即可啟用
+              捷運列車需填入 TDX Client ID &amp; Secret；高鐵、台鐵免 Key 也能看，但每日查詢次數有限，台鐵即時誤點改為每 10 分鐘更新
             </div>
           )}
         </div>

@@ -49,7 +49,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 VITE_CESIUM_ION_TOKEN=your_cesium_ion_token_here   # Google Earth 3D / Cesium 地形
 VITE_CWA_API_KEY=your_cwa_api_key_here             # 中央氣象署（備用，Open-Meteo 優先）
 VITE_EPA_API_KEY=your_epa_api_key_here             # 環境部 PM2.5 / AQI
-VITE_TDX_CLIENT_ID=your_tdx_client_id             # 交通部 TDX（捷運列車動態）
+VITE_TDX_CLIENT_ID=your_tdx_client_id             # 交通部 TDX（捷運列車動態；高鐵/台鐵免 Key 也能看）
 VITE_TDX_CLIENT_SECRET=your_tdx_client_secret
 VITE_API_PROXY_BASE_URL=                           # Optional: static hosts can point to Vercel proxy
 ```
@@ -172,6 +172,7 @@ LandWeaver-AI/
 | 文化資產保護範圍 | 國家災害防救科技中心 NCDR WMS | 不需要 | 08H 疊圖 |
 | 捷運 / 高鐵 / 台鐵路線與站點 | OSM 快照（`data/routes/*.json`） | 不需要 | 北捷（含環狀線、輕軌）/ 桃捷 / 中捷 / 高捷 + 高鐵 + 台鐵，含全部站點與站名；以 `node scripts/fetch-transport-routes.mjs` 更新（讀 OSM API，不經 Overpass） |
 | 捷運列車動態 | TDX 交通部 | 需要 | LiveBoard 即時班次，無 Key 則停用 |
+| 高鐵 / 台鐵列車位置 | TDX 交通部 | 選填 | 未填 Key 時以匿名方式查詢（每日次數有限，台鐵誤點每 10 分鐘更新）；填 Key 後誤點每分鐘更新 |
 | 太陽方位角 / 高度角 | 天文公式 | 不需要 | 即時計算，無需外部 API |
 | 底圖 OSM / 暗色 / 亮色 | OpenStreetMap / **Esri Canvas** | 不需要 | 暗色、亮色改用 Esri（CARTO 已改為需 Key），含地名標註；最高縮放 level 16 |
 | 3D 地形 | Cesium World Terrain → **Esri World Elevation 3D** | Ion（選填） | Ion token 無效時自動改用 Esri 地形 |
@@ -254,8 +255,8 @@ LandWeaver-AI/
 | 高雄捷運（KRTC） | 內建 + TDX LiveBoard | ✅ |
 | 桃園捷運（Taoyuan） | 內建 + TDX LiveBoard | ✅ |
 | 台中捷運（TMRT） | 內建 + TDX LiveBoard | ✅ |
-| 台灣高鐵（THSR） | 內建（時刻表模擬） | ✅ |
-| 台灣鐵路（TRA） | 內建（時刻表模擬） | ✅ |
+| 台灣高鐵（THSR） | OSM 快照 + TDX 今日時刻表 | ✅ 沿軌道連續移動，免 Key |
+| 台灣鐵路（TRA） | OSM 快照 + TDX 時刻表 + 即時誤點 | ✅ 沿軌道連續移動，免 Key（填 Key 後誤點每分鐘更新） |
 | YouBike 站點 | data.taipei 即時 | ✅ |
 
 ---
@@ -380,11 +381,12 @@ LandWeaver-AI/
 - **分區圖示**：Iconify 圖示 404，改為內嵌 SVG
 - **移除 Gemini**：刪除 `strategyService.ts`、🔑 API Key 按鈕與設定欄位；改為本機「場址規則檢核」（`services/siteRules.ts`），13 項逐項判讀，可一鍵複製 Markdown 表格交給任一 AI 分析，Module 05 不再消耗任何 AI 額度
 
-### v9.1 — Module 05 交通區位修復 + 08E 直連
+### v9.1 — Module 05 交通區位修復、列車即時位置 + 08E 直連
 - **路線改為內建 OSM 快照**：捷運 / 高鐵 / 台鐵 / 桃捷 / 中捷 / 高捷路線不再於執行時查 Overpass（公共鏡像常連不上，路線整個畫不出來）。`scripts/fetch-transport-routes.mjs` 從 OSM API 讀取各路線 relation、簡化（約 2 m）後存為 `data/routes/*.json`（共約 375 KB，開啟圖層時才載入），開啟後 0.1–0.3 秒顯示；台鐵改由各路線 relation 取得，不含糖鐵與工業側線
 - **站點補齊並顯示站名**：原本只內建少數站且部分座標錯誤（點不在線上），拉遠時捷運站點會消失、台鐵站點縮到看不見。現在站點也來自 OSM 快照：北捷 141、台鐵 242、桃捷 22、中捷 18、高捷 75 站，白點加路線色外框，拉近後顯示站名（北捷、高捷 12–15 km 內，桃捷、中捷 25 km 內，台鐵 40 km 內）
 - **路線載入失敗不再快取空結果**，下次開啟會重試
 - **道路分級 / 生活機能 POI**：查詢逾時由 15 / 7 秒放寬至 30 秒（目前可用的鏡像常需 15–25 秒），Overpass 預設逾時同步放寬；未點選分析點時側欄提示
+- **高鐵 / 台鐵列車即時位置**：交通區位面板的「列車即時位置」開關。依 TDX 今日時刻表（台鐵當日時刻表未發布時改用定期時刻表依星期篩選）推算每班車現在在哪兩站之間，沿 OSM 軌道（`transport/trackGraph.ts`，車站可換股道、站區缺口自動接合）連續移動，每 250 ms 更新，停站時停在月台；台鐵再套用 TDX 即時誤點，標籤顯示車種、車次、終點與誤點分鐘（橘＝對號列車、藍＝區間）。原本的程式用錯 TDX 端點與回傳格式，高鐵、台鐵列車從未真正顯示；現在未填 Key 也能用
 - **08E 淹水潛勢**：水利署防火牆拒絕 Vercel 機房 IP，改由瀏覽器直連 `maps.wra.gov.tw`（有開 CORS），移除 `wra-wms` proxy 路由
 
 ---

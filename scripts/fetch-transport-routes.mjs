@@ -83,10 +83,46 @@ function simplify(points) {
   return points.filter((_, i) => keep[i]);
 }
 
-/** Way → simplified, rounded [lng, lat][] */
-function waySegment(way, nodes) {
-  const pts = way.nodes.map((id) => nodes.get(id)).filter(Boolean).map((nd) => [nd.lon, nd.lat]);
-  return simplify(pts).map(([lng, lat]) => [round5(lng), round5(lat)]);
+/**
+ * Way → simplified, rounded [lng, lat][].
+ * Nodes in `fixed` (junctions, stop positions) are never simplified away, so ways
+ * that meet there share an identical vertex and the app can route trains along the
+ * track from one station to the next.
+ */
+function waySegment(way, nodes, fixed) {
+  const pts = [];
+  const cuts = [];
+  for (const id of way.nodes) {
+    const nd = nodes.get(id);
+    if (!nd) continue;
+    if (fixed.has(id)) cuts.push(pts.length);
+    pts.push([nd.lon, nd.lat]);
+  }
+  if (pts.length < 2) return [];
+  const bounds = [...new Set([0, ...cuts, pts.length - 1])].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < bounds.length - 1; i += 1) {
+    const part = simplify(pts.slice(bounds[i], bounds[i + 1] + 1));
+    out.push(...(i ? part.slice(1) : part));
+  }
+  return out.map(([lng, lat]) => [round5(lng), round5(lat)]);
+}
+
+/** Nodes shared by two or more ways (junctions) and stop positions of the relations. */
+function fixedNodes(relations) {
+  const uses = new Map();
+  const seenWays = new Set();
+  const fixed = new Set();
+  for (const { nodes, ways } of relations) {
+    for (const way of ways.values()) {
+      if (seenWays.has(way.id)) continue;
+      seenWays.add(way.id);
+      for (const id of new Set(way.nodes)) uses.set(id, (uses.get(id) ?? 0) + 1);
+    }
+    for (const nd of nodes.values()) if (isStop(nd.tags)) fixed.add(nd.id);
+  }
+  for (const [id, n] of uses) if (n >= 2) fixed.add(id);
+  return fixed;
 }
 
 /**
@@ -95,6 +131,7 @@ function waySegment(way, nodes) {
  */
 function collectWays(relations, pick, seen = new Set()) {
   const entries = [];
+  const fixed = fixedNodes(relations);
   for (const { rel, nodes, ways } of relations) {
     for (const m of rel.members) {
       if (m.type !== 'way' || seen.has(m.ref)) continue;
@@ -103,7 +140,7 @@ function collectWays(relations, pick, seen = new Set()) {
       const color = pick(way, m.role ?? '', rel);
       if (color === false) continue;
       seen.add(m.ref);
-      const segment = waySegment(way, nodes);
+      const segment = waySegment(way, nodes, fixed);
       if (segment.length >= 2) entries.push({ color, segment });
     }
   }

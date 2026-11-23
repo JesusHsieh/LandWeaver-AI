@@ -3,8 +3,9 @@
  * 交通部運輸資料流通服務平台
  * https://tdx.transportdata.tw
  *
- * 支援：台北捷運 LiveBoard、高鐵時刻表
- * Auth：OIDC Client Credentials (Client ID + Secret → Bearer Token)
+ * 支援：捷運 LiveBoard、高鐵 / 台鐵時刻表、台鐵即時誤點
+ * Auth：OIDC Client Credentials (Client ID + Secret → Bearer Token)。
+ * 未填 Key 時改以匿名方式查詢：TDX 允許瀏覽器免 Key 呼叫，但每日次數很少。
  */
 
 const TDX_TOKEN_URL =
@@ -43,13 +44,19 @@ async function getToken(): Promise<string | null> {
   }
 }
 
+export const hasTdxKey = () =>
+  !!(localStorage.getItem('VITE_TDX_CLIENT_ID')?.trim() && localStorage.getItem('VITE_TDX_CLIENT_SECRET')?.trim());
+
 async function tdxFetch<T>(path: string): Promise<T | null> {
   const token = await getToken();
-  if (!token) return null;
   try {
-    const res = await fetch(`${TDX_BASE}${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(`${TDX_BASE}${path}`, token
+      ? { headers: { Authorization: `Bearer ${token}` } }
+      : undefined);
+    if (res.status === 429) {
+      console.warn(`[TDX] 查詢次數已達上限${token ? '' : '（未填 TDX Key 時每日次數很少，請到 ⚙ 設定填入）'}`);
+      return null;
+    }
     if (!res.ok) throw new Error(`TDX ${res.status} ${path}`);
     return res.json() as Promise<T>;
   } catch (e) {
@@ -68,18 +75,6 @@ export interface MrtLiveBoard {
   DestinationStaionID: string;
   ScheduledArrivalTime: string;
   ScheduledDepartureTime: string;
-}
-
-export interface ThsrDailyTrain {
-  TrainNo: string;
-  Direction: 0 | 1;
-  StopTimes: {
-    StopSequence: number;
-    StationID: string;
-    StationName: { Zh_tw: string };
-    ArrivalTime: string;
-    DepartureTime: string;
-  }[];
 }
 
 export interface YouBikeStation {
@@ -108,15 +103,6 @@ export async function fetchMetroLiveBoard(
 /** 台北捷運各站目前列車動態（保留向後相容） */
 export async function fetchMrtLiveBoard(): Promise<MrtLiveBoard[]> {
   return fetchMetroLiveBoard('TRTC');
-}
-
-/** 高鐵今日時刻表（所有班次） */
-export async function fetchThsrDailyTimetable(): Promise<ThsrDailyTrain[]> {
-  const today = new Date().toISOString().slice(0, 10);
-  const data = await tdxFetch<{ TrainTimetables: ThsrDailyTrain[] }>(
-    `/v2/Rail/THSR/DailyTimetable/Today?$format=JSON`
-  );
-  return data?.TrainTimetables ?? [];
 }
 
 const toNum = (...vals: unknown[]): number => {
@@ -166,176 +152,121 @@ export async function fetchYouBikeStations(): Promise<YouBikeStation[]> {
   }
 }
 
-// ── TRA Daily Timetable ───────────────────────────────────────────────────────
+// ── 高鐵 / 台鐵時刻表 → 列車行程 ──────────────────────────────────────────────
+// 地圖上的列車位置由 transport/useTrainLayer 依「現在時間 + 誤點」在停靠站之間沿軌道推算。
 
-export interface TRADailyTrain {
-  TrainNo: string;
-  Direction: 0 | 1;
-  StopTimes: {
-    StopSequence: number;
-    StationID: string;
-    StationName: { Zh_tw: string };
-    ArrivalTime: string;
-    DepartureTime: string;
-  }[];
+export interface RailTrip {
+  trainNo: string;
+  /** 地圖標籤，如「自強 172 往樹林」 */
+  label: string;
+  /** 對號列車（台鐵太魯閣、普悠瑪、自強、莒光、復興；高鐵一律 true） */
+  express: boolean;
+  /** 停靠站與到、離站時間（台北時間當日 0 時起算的秒數，跨夜 +86400） */
+  stops: { name: string; arr: number; dep: number }[];
 }
 
-/** 台鐵今日時刻表（所有班次） */
-export async function fetchTRADailyTimetable(): Promise<TRADailyTrain[]> {
-  const data = await tdxFetch<{ TrainTimetables: any[] }>(
-    '/v2/Rail/TRA/DailyTrainTimetable/Today?$format=JSON'
+interface RawStopTime {
+  StopSequence: number;
+  StationName?: { Zh_tw?: string };
+  ArrivalTime?: string;
+  DepartureTime?: string;
+  SuspendedFlag?: number;
+}
+
+const TAIPEI_OFFSET_MS = 8 * 3600_000;
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+
+/** 台北時間：日期、星期（0=週日）、當日秒數 */
+export function taipeiNow() {
+  const d = new Date(Date.now() + TAIPEI_OFFSET_MS);
+  return {
+    date: d.toISOString().slice(0, 10),
+    weekday: d.getUTCDay(),
+    sec: d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds() + d.getUTCMilliseconds() / 1000,
+  };
+}
+
+const toSec = (t?: string) => {
+  if (!t) return NaN;
+  const [h, m, s = '0'] = t.split(':');
+  return Number(h) * 3600 + Number(m) * 60 + Number(s);
+};
+
+function toStops(raw: RawStopTime[]): RailTrip['stops'] {
+  const stops: RailTrip['stops'] = [];
+  let offset = 0, last = -Infinity;
+  for (const st of [...raw].sort((a, b) => a.StopSequence - b.StopSequence)) {
+    if (st.SuspendedFlag === 1) continue; // 本站停駛
+    let arr = toSec(st.ArrivalTime || st.DepartureTime) + offset;
+    let dep = toSec(st.DepartureTime || st.ArrivalTime) + offset;
+    if (!Number.isFinite(arr) || !Number.isFinite(dep)) continue;
+    if (arr < last - 6 * 3600) { offset += 86400; arr += 86400; dep += 86400; } // 跨夜
+    if (dep < arr - 6 * 3600) { offset += 86400; dep += 86400; }                // 本站午夜後才開
+    stops.push({ name: st.StationName?.Zh_tw ?? '', arr, dep });
+    last = dep;
+  }
+  return stops;
+}
+
+/** 同一天內只抓一次；抓到空結果不快取，下次再試 */
+function oncePerDay(load: () => Promise<RailTrip[]>): () => Promise<RailTrip[]> {
+  let cache: { date: string; trips: Promise<RailTrip[]> } | null = null;
+  return () => {
+    const { date } = taipeiNow();
+    if (!cache || cache.date !== date) {
+      const trips = load();
+      cache = { date, trips };
+      trips.then(t => { if (!t.length && cache?.trips === trips) cache = null; });
+    }
+    return cache.trips;
+  };
+}
+
+/** 高鐵今日時刻表 */
+export const fetchThsrTrips = oncePerDay(async () => {
+  const data = await tdxFetch<any[]>('/v2/Rail/THSR/DailyTimetable/Today?$format=JSON');
+  return (Array.isArray(data) ? data : []).map((t): RailTrip => {
+    const info = t.DailyTrainInfo ?? {};
+    return {
+      trainNo: info.TrainNo ?? '',
+      label: `高鐵 ${info.TrainNo ?? ''} 往${info.EndingStationName?.Zh_tw ?? ''}`,
+      express: true,
+      stops: toStops(t.StopTimes ?? []),
+    };
+  }).filter(t => t.stops.length >= 2);
+});
+
+// 車種簡碼：1 太魯閣、2 普悠瑪、3 自強、4 莒光、5 復興、11 自強(3000)；6 區間、7 普快、10 區間快
+const TRA_EXPRESS = new Set(['1', '2', '3', '4', '5', '11']);
+
+function traTrip(t: any): RailTrip {
+  const info = t.TrainInfo ?? {};
+  const type = String(info.TrainTypeName?.Zh_tw ?? '').replace(/\(.*$/, ''); // 「自強(3000)(EMU3000 型電車)」→「自強」
+  return {
+    trainNo: info.TrainNo ?? '',
+    label: `${type} ${info.TrainNo ?? ''} 往${info.EndingStationName?.Zh_tw ?? ''}`.trim(),
+    express: TRA_EXPRESS.has(String(info.TrainTypeCode)),
+    stops: toStops(t.StopTimes ?? []),
+  };
+}
+
+/** 台鐵今日時刻表；當日時刻表尚未發布（例如剛過午夜）時改用定期時刻表，依星期篩選 */
+export const fetchTraTrips = oncePerDay(async () => {
+  const daily = await tdxFetch<{ TrainTimetables?: any[] }>('/v3/Rail/TRA/DailyTrainTimetable/Today?$format=JSON');
+  let list = daily?.TrainTimetables ?? [];
+  if (!list.length) {
+    const general = await tdxFetch<{ TrainTimetables?: any[] }>('/v3/Rail/TRA/GeneralTrainTimetable?$format=JSON');
+    const day = WEEKDAYS[taipeiNow().weekday];
+    list = (general?.TrainTimetables ?? []).filter(t => !t.ServiceDay || t.ServiceDay[day] === 1);
+  }
+  return list.map(traTrip).filter(t => t.stops.length >= 2);
+});
+
+/** 台鐵即時誤點（分鐘），以車次為 key；查詢失敗回傳 null */
+export async function fetchTraDelays(): Promise<Map<string, number> | null> {
+  const data = await tdxFetch<{ TrainLiveBoards?: { TrainNo: string; DelayTime?: number }[] }>(
+    '/v3/Rail/TRA/TrainLiveBoard?$format=JSON'
   );
-  if (!data) return [];
-  // TDX TRA 回傳格式：TrainTimetables[].TrainInfo + StopTimes
-  return data.TrainTimetables.map((tt: any) => ({
-    TrainNo:   tt.TrainInfo?.TrainNo   ?? tt.TrainNo   ?? '',
-    Direction: tt.TrainInfo?.Direction ?? tt.Direction ?? 0,
-    StopTimes: tt.StopTimes ?? [],
-  }));
-}
-
-// ── THSR Train Position Interpolator ────────────────────────────────────────
-// 高鐵無即時位置 API，用時刻表 + 現在時間線性內插站間位置
-
-export interface ThsrTrainPosition {
-  trainNo: string;
-  direction: 0 | 1;
-  lng: number;
-  lat: number;
-  fromStation: string;
-  toStation: string;
-  progress: number; // 0-1
-}
-
-/** THSR 站點順序座標（南港→左營） */
-export const THSR_STATION_COORDS: Record<string, [number, number]> = {
-  '0990': [121.6072, 25.0579], // 南港
-  '0100': [121.5151, 25.0122], // 台北
-  '0110': [121.4634, 25.0143], // 板橋
-  '0120': [121.2265, 24.9776], // 桃園
-  '0130': [120.9826, 24.7999], // 新竹
-  '0140': [120.8219, 24.5099], // 苗栗
-  '0150': [120.6841, 24.1726], // 台中
-  '0160': [120.5383, 23.9951], // 彰化
-  '0170': [120.4266, 23.6767], // 雲林
-  '0180': [120.3612, 23.4499], // 嘉義
-  '0190': [120.2091, 23.0099], // 台南
-  '0200': [120.2946, 22.6842], // 左營
-};
-
-// ── TRA Train Position Interpolator ──────────────────────────────────────────
-// 與 THSR 相同邏輯，但以站名（中文）作為座標索引（TDX TRA 站 ID 難以預測）
-
-export interface TRATrainPosition {
-  trainNo: string;
-  lng: number;
-  lat: number;
-  fromStation: string;
-  toStation: string;
-}
-
-/** 台鐵站名 → 座標（列車位置內插用） */
-export const TRA_STATION_NAME_COORDS: Record<string, [number, number]> = {
-  '基隆':   [121.7398, 25.1290],
-  '台北':   [121.5170, 25.0478],
-  '臺北':   [121.5170, 25.0478], // 官方可能用臺
-  '板橋':   [121.4634, 25.0143],
-  '桃園':   [121.3130, 24.9893],
-  '中壢':   [121.2246, 24.9544],
-  '新竹':   [120.9697, 24.8024],
-  '竹南':   [120.8880, 24.6874],
-  '苗栗':   [120.8199, 24.5637],
-  '豐原':   [120.7184, 24.2539],
-  '台中':   [120.6830, 24.1380],
-  '臺中':   [120.6830, 24.1380],
-  '彰化':   [120.5382, 24.0778],
-  '員林':   [120.5709, 23.9581],
-  '嘉義':   [120.4278, 23.4783],
-  '新營':   [120.3108, 23.3022],
-  '台南':   [120.2143, 22.9975],
-  '臺南':   [120.2143, 22.9975],
-  '左營':   [120.3069, 22.6890],
-  '高雄':   [120.2943, 22.6393],
-  '屏東':   [120.4878, 22.6712],
-  '宜蘭':   [121.7531, 24.7512],
-  '花蓮':   [121.6031, 23.9912],
-  '台東':   [121.1294, 22.7977],
-  '臺東':   [121.1294, 22.7977],
-};
-
-export function interpolateTRAPositions(
-  timetable: TRADailyTrain[]
-): TRATrainPosition[] {
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-  const positions: TRATrainPosition[] = [];
-
-  for (const train of timetable) {
-    const stops = [...train.StopTimes].sort((a, b) => a.StopSequence - b.StopSequence);
-    for (let i = 0; i < stops.length - 1; i++) {
-      const depStr = stops[i].DepartureTime || stops[i].ArrivalTime;
-      const arrStr = stops[i + 1].ArrivalTime;
-      if (!depStr || !arrStr) continue;
-
-      const dep = timeToMinutes(depStr);
-      const arr = timeToMinutes(arrStr);
-      if (nowMin >= dep && nowMin <= arr) {
-        const progress = arr > dep ? (nowMin - dep) / (arr - dep) : 0;
-        const fromName = stops[i].StationName?.Zh_tw ?? '';
-        const toName   = stops[i + 1].StationName?.Zh_tw ?? '';
-        const from = TRA_STATION_NAME_COORDS[fromName];
-        const to   = TRA_STATION_NAME_COORDS[toName];
-        if (!from || !to) continue;
-        positions.push({
-          trainNo:     train.TrainNo,
-          lng:         from[0] + (to[0] - from[0]) * progress,
-          lat:         from[1] + (to[1] - from[1]) * progress,
-          fromStation: fromName,
-          toStation:   toName,
-        });
-        break;
-      }
-    }
-  }
-  return positions;
-}
-
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
-export function interpolateThsrPositions(
-  timetable: ThsrDailyTrain[]
-): ThsrTrainPosition[] {
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-  const positions: ThsrTrainPosition[] = [];
-
-  for (const train of timetable) {
-    const stops = train.StopTimes.sort((a, b) => a.StopSequence - b.StopSequence);
-    for (let i = 0; i < stops.length - 1; i++) {
-      const dep = timeToMinutes(stops[i].DepartureTime || stops[i].ArrivalTime);
-      const arr = timeToMinutes(stops[i + 1].ArrivalTime);
-      if (nowMin >= dep && nowMin <= arr) {
-        const progress = (nowMin - dep) / (arr - dep);
-        const fromId = stops[i].StationID;
-        const toId   = stops[i + 1].StationID;
-        const from   = THSR_STATION_COORDS[fromId];
-        const to     = THSR_STATION_COORDS[toId];
-        if (!from || !to) continue;
-        positions.push({
-          trainNo:     train.TrainNo,
-          direction:   train.Direction,
-          lng:         from[0] + (to[0] - from[0]) * progress,
-          lat:         from[1] + (to[1] - from[1]) * progress,
-          fromStation: stops[i].StationName.Zh_tw,
-          toStation:   stops[i + 1].StationName.Zh_tw,
-          progress,
-        });
-        break;
-      }
-    }
-  }
-  return positions;
+  if (!data) return null;
+  return new Map((data.TrainLiveBoards ?? []).map(b => [b.TrainNo, b.DelayTime ?? 0]));
 }

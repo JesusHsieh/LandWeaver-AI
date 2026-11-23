@@ -32,9 +32,7 @@ import {
 } from '../data/transportData';
 import {
   fetchMrtLiveBoard, fetchMetroLiveBoard,
-  fetchThsrDailyTimetable, interpolateThsrPositions,
-  fetchTRADailyTimetable, interpolateTRAPositions,
-  type ThsrTrainPosition, type TRATrainPosition,
+  fetchThsrTrips, fetchTraTrips, fetchTraDelays,
   type MrtLiveBoard,
 } from '../services/tdxService';
 
@@ -43,7 +41,7 @@ import {
   makeStations, addStations, removeStations, type StationPrims,
 } from '../transport/cesiumPrimitiveHelpers';
 import { useRailRouteLayer } from '../transport/useRailRouteLayer';
-import { useRailTrainLayer } from '../transport/useRailTrainLayer';
+import { useTrainLayer } from '../transport/useTrainLayer';
 import { useYouBikeLayer } from '../transport/useYouBikeLayer';
 
 interface Props {
@@ -64,8 +62,6 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
 
   // Train collections (MRT & THSR handled locally; others via hook)
   const mrtTrainsRef   = useRef<PointPrimitiveCollection | null>(null);
-  const thsrTrainsRef  = useRef<PointPrimitiveCollection | null>(null);
-  const thsrTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Kaohsiung MRT (multi-colour, handled separately)
   const ksMrtRouteRef  = useRef<GroundPolylinePrimitive[]>([]);
@@ -87,10 +83,8 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
     removePrim(v, thsrStPtsRef.current);
     removePrim(v, thsrLabelsRef.current);
     removePrim(v, mrtTrainsRef.current);
-    removePrim(v, thsrTrainsRef.current);
     ksMrtRouteRef.current.forEach(p => removePrim(v, p));
     removeStations(v, ksMrtStationsRef.current);
-    if (thsrTimerRef.current) clearInterval(thsrTimerRef.current);
   }, []);
 
   // ── MRT 路線 + 站點（多色，獨立管理）──────────────────────────────────────
@@ -222,47 +216,18 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
     return () => { cancelled = true; };
   }, [settings.showThsrLayer]);
 
-  // ── THSR 列車動態 ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const vNow = getV();
-    removePrim(vNow, thsrTrainsRef.current);
-    thsrTrainsRef.current = null;
-    if (thsrTimerRef.current) { clearInterval(thsrTimerRef.current); thsrTimerRef.current = null; }
-
-    if (!settings.showThsrTrains) return;
-
-    let cancelled = false;
-
-    const updateTrains = (timetable: any[], v: any) => {
-      if (cancelled) return;
-      removePrim(v, thsrTrainsRef.current);
-      const positions = interpolateThsrPositions(timetable);
-
-      const pts = new PointPrimitiveCollection();
-      positions.forEach((p: ThsrTrainPosition) => pts.add({
-        position:    Cartesian3.fromDegrees(p.lng, p.lat, 5),
-        pixelSize:   18,
-        color:       Color.fromBytes(255, 80, 80, 240),
-        outlineColor: Color.WHITE.withAlpha(0.85),
-        outlineWidth: 2.5,
-      }));
-      v.scene.primitives.add(pts);
-      thsrTrainsRef.current = pts;
-    };
-
-    (async () => {
-      const v = await waitForViewer(viewerRef);
-      if (cancelled || !settings.showThsrTrains) return;
-
-      const tt = await fetchThsrDailyTimetable();
-      if (cancelled || !settings.showThsrTrains) return;
-
-      updateTrains(tt, v);
-      thsrTimerRef.current = setInterval(() => updateTrains(tt, v), 30_000);
-    })();
-
-    return () => { cancelled = true; };
-  }, [settings.showThsrTrains]);
+  // ── 高鐵列車（時刻表，沿軌道移動）──────────────────────────────────────────
+  useTrainLayer({
+    viewerRef,
+    enabled:  settings.showThsrTrains,
+    name:     '高鐵',
+    loadRoute: loadThsrRoute,
+    stations: () => THSR_STATIONS,
+    fetchTrips: fetchThsrTrips,
+    colors:   { express: '#FF5252', local: '#FF5252' },
+    pixelSize: 12,
+    labelMaxDistance: 8e4,
+  });
 
   // ── 高雄捷運（紅線+橘線+環狀輕軌，多色）────────────────────────────────────
   useEffect(() => {
@@ -323,15 +288,18 @@ export const TransportCesiumLayer: React.FC<Props> = ({ viewerRef, settings }) =
     8, 2.5e4,
   );
 
-  // ── TRA 列車動態（useRailTrainLayer hook）────────────────────────────────────
-  useRailTrainLayer({
+  // ── 台鐵列車（時刻表 + 即時誤點，沿軌道移動）──────────────────────────────
+  useTrainLayer({
     viewerRef,
-    enabled:       settings.showTRATrains,
-    pixelSize:     13,
-    dotColorBytes: [60, 140, 255],
-    fetchTimetable: fetchTRADailyTimetable,
-    interpolateFn: (tt) => interpolateTRAPositions(tt) as TRATrainPosition[],
-    intervalMs:    60_000,
+    enabled:  settings.showTRATrains,
+    name:     '台鐵',
+    loadRoute: loadTraRoute,
+    stations: route => route.stations,
+    fetchTrips: fetchTraTrips,
+    fetchDelays: fetchTraDelays,
+    colors:   { express: '#F59E0B', local: '#60A5FA' }, // 對號列車橘、區間藍
+    pixelSize: 10,
+    labelMaxDistance: 2e4,
   });
 
   // ── 桃捷列車動態（useMetroLiveBoardLayer — inlined for compactness）──────────

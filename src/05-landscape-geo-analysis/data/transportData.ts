@@ -150,7 +150,20 @@ interface RouteSnapshot<T> {
   stations?: RouteStation[];
 }
 
-async function loadRouteSnapshot<T extends unknown[]>(url: URL, label: string): Promise<RouteData<T>> {
+const routeCache = new Map<string, Promise<RouteData<any>>>();
+
+/** 同一份快照只抓一次（路線圖層與列車圖層共用）；失敗不快取，下次再試 */
+function loadRouteSnapshot<T extends unknown[]>(url: URL, label: string): Promise<RouteData<T>> {
+  let p = routeCache.get(url.href);
+  if (!p) {
+    p = fetchRouteSnapshot<T>(url, label);
+    routeCache.set(url.href, p);
+    p.then(r => { if (!r.lines.length) routeCache.delete(url.href); });
+  }
+  return p;
+}
+
+async function fetchRouteSnapshot<T extends unknown[]>(url: URL, label: string): Promise<RouteData<T>> {
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
