@@ -16,7 +16,7 @@ export const TransportBlock: React.FC<TransportBlockProps> = ({ settings, set, o
 
     <LayerRow
       label="道路分級"
-      sub="主幹道 / 次幹道 / 地方道 · 壓力標籤"
+      sub="OSM 道路等級 · 主幹道 / 次幹道 / 地方道"
       active={settings.showRoadLayer}
       onClick={() => set('showRoadLayer', !settings.showRoadLayer)}
       accent="#FF7043"

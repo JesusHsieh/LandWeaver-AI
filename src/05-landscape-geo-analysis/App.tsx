@@ -14,13 +14,25 @@ function applySolarForTime(
   time: Date,
 ): MicroClimateData {
   const sunPos = GISService.calculateSolarPosition(lat, lng, time);
-  const shadowCoverage = Math.max(0, Math.min(100, 90 - sunPos.altitude * 1.8));
   return {
     ...micro,
     solarAzimuth:  sunPos.azimuth,
     solarAltitude: sunPos.altitude,
-    shadowCoverage,
   };
+}
+
+// 二十四節氣，由太陽黃經 0°（春分）起每 15° 一個
+const SOLAR_TERMS = [
+  '春分', '清明', '穀雨', '立夏', '小滿', '芒種', '夏至', '小暑', '大暑', '立秋', '處暑', '白露',
+  '秋分', '寒露', '霜降', '立冬', '小雪', '大雪', '冬至', '小寒', '大寒', '立春', '雨水', '驚蟄',
+];
+
+/** 目前所在的節氣：以太陽視黃經判定（Meeus 低精度公式，誤差約 0.01°） */
+function solarTerm(date: Date): string {
+  const n = date.getTime() / 86400000 + 2440587.5 - 2451545.0; // days since J2000.0
+  const g = (357.528 + 0.9856003 * n) * Math.PI / 180;
+  const lambda = 280.460 + 0.9856474 * n + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g);
+  return SOLAR_TERMS[Math.floor((((lambda % 360) + 360) % 360) / 15)];
 }
 
 export default function App() {
@@ -308,10 +320,7 @@ export default function App() {
           }}
         />
         <span className="text-[10px] font-mono shrink-0 hidden md:block" style={{ color: '#555' }}>
-          {format(settings.currentTime, 'MM/dd')} · {
-            ['冬至','冬至','春分','春分','春分','夏至','夏至','夏至','秋分','秋分','秋分','冬至']
-            [settings.currentTime.getMonth()]
-          }
+          {format(settings.currentTime, 'MM/dd')} · {solarTerm(settings.currentTime)}
         </span>
       </footer>
 

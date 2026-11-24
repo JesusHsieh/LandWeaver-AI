@@ -5,15 +5,19 @@
 import { withTimeout } from '../../utils/withTimeout';
 
 export interface SolarResult {
+  /** 最佳傾角斜面的年日射量 kWh/m² */
   annualIrradiance: number;
+  /** 12 個月斜面日射量，以最大月 = 100 正規化 */
   monthlyIrradiance: number[];
+  /** 日均峰值日照時數（斜面日均日射量 kWh/m²/day） */
   peakSunHours: number;
+  /** PVGIS 算出的最佳傾角 */
   recommendedTilt: number;
 }
 
 // ============================================================
 // API 3：EU PVGIS — 太陽輻射量資料（免費，無需 Key）
-// 覆蓋台灣全境
+// 覆蓋台灣全境；用斜面日射量 H(i)，不是 1 kWp 系統的發電量 E
 // ============================================================
 export async function fetchPVGISSolar(
   lat: number,
@@ -29,18 +33,19 @@ export async function fetchPVGISSolar(
   if (!res.ok) throw new Error(`PVGIS API 錯誤：${res.status}`);
   const json = await res.json();
 
-  const monthly: number[] = json.outputs.monthly.fixed.map((m: any) => m.E_m);
-  const annualKWh: number  = json.outputs.totals.fixed.E_y;
-  const optTilt: number    = json.inputs.mounting_system?.fixed?.tilt?.value ?? Math.abs(lat);
+  const monthly: number[] = json.outputs.monthly.fixed.map((m: any) => m['H(i)_m']);
+  const annual: number = json.outputs.totals.fixed['H(i)_y'];
+  const dailyMean: number = json.outputs.totals.fixed['H(i)_d'];
+  const tilt: number = json.inputs.mounting_system?.fixed?.slope?.value;
+  if (monthly.length !== 12 || ![annual, dailyMean, tilt].every(Number.isFinite)) {
+    throw new Error('PVGIS 回傳格式不符');
+  }
 
   const maxM = Math.max(...monthly);
-  const normalizedMonthly = monthly.map(v => Math.round((v / maxM) * 100));
-  const peakSunHours = Math.round((annualKWh / 365) * 10) / 10;
-
   return {
-    annualIrradiance:  Math.round(annualKWh),
-    monthlyIrradiance: normalizedMonthly,
-    peakSunHours:      Math.min(peakSunHours, 9),
-    recommendedTilt:   Math.round(optTilt),
+    annualIrradiance:  Math.round(annual),
+    monthlyIrradiance: monthly.map(v => Math.round((v / maxM) * 100)),
+    peakSunHours:      Math.round(dailyMean * 10) / 10,
+    recommendedTilt:   Math.round(tilt),
   };
 }

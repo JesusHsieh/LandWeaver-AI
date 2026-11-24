@@ -43,7 +43,7 @@ export const LayersBlock: React.FC<LayersBlockProps> = ({ settings, set }) => {
       ))}
     </div>
     <LayerRow label="OSM 3D 建築模型"
-      sub={ionInvalid ? '無 Ion Token · 改用 Overpass 建物（畫面中心 600m）' : 'Ion 96188 · 需開啟地形才貼合'}
+      sub={ionInvalid ? '無 Ion Token · Overpass 建物 600m · 未標高度者以 3 層繪製' : 'Ion 96188 · 需開啟地形才貼合'}
       subColor={ionInvalid ? WARN : undefined}
       active={settings.showOsmBuildings}
       onClick={() => set('showOsmBuildings', !settings.showOsmBuildings)}

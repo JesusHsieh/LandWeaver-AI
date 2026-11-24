@@ -187,7 +187,7 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
           cgsSlopeProvider={providers.cgsSlopeProvider}
         />
 
-        {/* 08G · 飲用水保護區 — OSM 水庫/水源地 */}
+        {/* 08G · 水庫 / 水體 — OSM 標記（不是法定飲用水保護區範圍） */}
         {settings.showDrinkingWater && waterFeatures.map((f, i) => (
           <Entity key={`dw-${i}`} position={Cartesian3.fromDegrees(f.lng, f.lat, 300)} name={`💧 ${f.name}`}>
             <PointGraphics
@@ -200,7 +200,7 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
           </Entity>
         ))}
 
-        {/* 08H · 文化資產 — OSM historic 節點 */}
+        {/* 08H · 歷史古蹟點位 — OSM historic 標記（不是文資局法定清冊） */}
         {settings.showCulturalHeritage && heritageFeatures.map((f, i) => (
           <Entity key={`ch-${i}`} position={Cartesian3.fromDegrees(f.lng, f.lat, 300)} name={`🏛 ${f.name}`}>
             <PointGraphics
@@ -243,7 +243,7 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
             {/* Solar path, compass, sun disc */}
             <SolarLayer settings={settings} />
 
-            {/* Zoning grid, flow arrows, hydrology, soil analysis, urban stress */}
+            {/* Microclimate zone, runoff direction, drainage, heat & wind */}
             <ZoningLayer settings={settings} landscapeData={landscapeData} />
 
             {/* Buffer circles */}
@@ -255,8 +255,8 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
             {/* Elevation profile endpoints */}
             <ElevProfileLayer settings={settings} elevPts={elevPts} />
 
-            {/* NDVI dots, building density, impervious layer */}
-            <AnalysisLayers settings={settings} landscapeData={landscapeData} ndviFeatures={ndviFeatures} buildingGrid={buildingGrid} />
+            {/* OSM green-area tags, building density */}
+            <AnalysisLayers settings={settings} ndviFeatures={ndviFeatures} buildingGrid={buildingGrid} />
 
             {/* Street trees */}
             <TreeLayer settings={settings} treeFeatures={treeFeatures} />

@@ -1,15 +1,18 @@
 import { format } from 'date-fns';
 import { MicroClimateData, LandscapeDesignData, MapSettings } from '../types';
+import { evaluateSiteRules, formatRuleTable } from './siteRules';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function srcLabel(src: string): string {
-  return src === 'fallback' ? '⚠ 估算值' : '✓ 即時 API';
-}
+const NO_DATA = '無資料';
+const fmt = (v: number | null, digits: number, unit = '') => (v === null ? NO_DATA : `${v.toFixed(digits)}${unit}`);
+const yesNo = (v: boolean | null) => (v === null ? NO_DATA : v ? '是' : '否');
+const compassZh = (deg: number) => ['北', '東北', '東', '東南', '南', '西南', '西', '西北'][Math.round(deg / 45) % 8];
 
-function windDir(deg: number): string {
-  return ['北', '東北', '東', '東南', '南', '西南', '西', '西北'][Math.round(deg / 45) % 8];
-}
+const WEATHER_SRC = { openMeteo: 'Open-Meteo 格點即時資料', cwa: '中央氣象署最近測站', none: '查詢失敗' };
+const AIR_SRC     = { epa: '環境部最近測站', openMeteo: 'Open-Meteo CAMS 模式值（非測站觀測）', none: '查詢失敗' };
+const SOLAR_SRC   = { pvgis: 'EU PVGIS-ERA5（最佳傾角斜面日射量）', none: '查詢失敗' };
+const ELEV_SRC    = { openElevation: 'Open-Elevation DEM（5 點差分）', none: '查詢失敗' };
 
 // ─── Markdown / Plain-Text Generator ─────────────────────────────────────────
 
@@ -18,161 +21,117 @@ export function buildReportMd(
   landscape: LandscapeDesignData,
   settings: MapSettings
 ): string {
-  const base = settings.selectedBase;
-  const ts   = format(settings.currentTime, 'yyyy-MM-dd HH:mm');
+  const point = settings.analysisPoint ?? settings.selectedBase;
+  const ts    = format(settings.currentTime, 'yyyy-MM-dd HH:mm');
+  const { drainage, urbanStress, zoning, recommendations: rec } = landscape;
 
   const lines: string[] = [];
+  const table = (rows: [string, string][]) => {
+    lines.push(`| 項目 | 數值 |`, `|------|------|`, ...rows.map(([k, v]) => `| ${k} | ${v} |`), ``);
+  };
 
-  lines.push(`# 🌍 LandWeaver AI — 景觀地理分析報告`);
-  lines.push(``);
-  lines.push(`> 產出時間：${ts}`);
-  lines.push(``);
+  lines.push(`# 🌍 LandWeaver — 景觀地理分析報告`, ``);
+  lines.push(`> 產出時間：${ts}　·　所有數值皆來自下列資料來源或標準公式；查詢失敗的項目標示「${NO_DATA}」，不以估算值代替。`, ``);
 
   // 1. 基地資訊
-  lines.push(`## 一、基地資訊`);
-  lines.push(``);
-  lines.push(`| 項目 | 數值 |`);
-  lines.push(`|------|------|`);
-  lines.push(`| 基地名稱 | ${base?.name ?? '--'} |`);
-  lines.push(`| 座標 | 北緯 ${base?.lat.toFixed(4)}°，東經 ${base?.lng.toFixed(4)}° |`);
-  lines.push(`| 行政區 / 都市計畫分區 | ${landscape.landUseZone} |`);
-  lines.push(`| 地面高程 (DEM) | ${micro.elevation.toFixed(1)} m　${srcLabel(micro._sources.elevation)} |`);
-  lines.push(`| 地表坡度 | ${micro.slopePct.toFixed(1)} % |`);
-  lines.push(`| 坡向 | ${micro.aspectDir}（${micro.aspectDeg.toFixed(0)}°）|`);
-  lines.push(`| 地表排水係數 (C) | ${micro.drainageCoeff.toFixed(2)} |`);
-  lines.push(``);
+  lines.push(`## 一、基地資訊`, ``);
+  table([
+    ['座標', point ? `北緯 ${point.lat.toFixed(5)}°，東經 ${point.lng.toFixed(5)}°` : NO_DATA],
+    ['行政區 / 都市計畫分區', landscape.landUseZone],
+    ['容積率 / 建蔽率', '依各都市計畫書規定（本工具不提供推估值）'],
+    ['地面高程 (DEM)', fmt(micro.elevation, 1, ' m')],
+    ['地表坡度', fmt(micro.slopePct, 1, ' %')],
+    ['坡向（下坡方向）', micro.aspectDeg === null ? (micro.aspectDir ?? NO_DATA) : `${micro.aspectDir}（${micro.aspectDeg.toFixed(0)}°）`],
+  ]);
 
   // 2. 即時氣象
-  lines.push(`## 二、即時氣象　${srcLabel(micro._sources.weather)}`);
-  lines.push(``);
-  lines.push(`| 項目 | 數值 |`);
-  lines.push(`|------|------|`);
-  lines.push(`| 氣溫 | ${micro.temp.toFixed(1)} °C |`);
-  lines.push(`| 相對濕度 | ${micro.humidity.toFixed(0)} % |`);
-  lines.push(`| 風速 / 風向 | ${micro.windSpeed.toFixed(1)} m/s　${windDir(micro.windDirection)}（${micro.windDirection.toFixed(0)}°）|`);
-  lines.push(`| 即時降雨量 | ${micro.rainfall.toFixed(1)} mm |`);
-  lines.push(``);
+  lines.push(`## 二、即時氣象`, ``);
+  table([
+    ['氣溫', fmt(micro.temp, 1, ' °C')],
+    ['相對濕度', fmt(micro.humidity, 0, ' %')],
+    ['風速 / 風向', micro.windSpeed === null ? NO_DATA
+      : `${micro.windSpeed.toFixed(1)} m/s${micro.windDirection === null ? '' : `　${compassZh(micro.windDirection)}（${micro.windDirection.toFixed(0)}°）`}`],
+    ['即時降雨量', fmt(micro.rainfall, 1, ' mm')],
+    ['地表溫度（0 cm，模式值）', fmt(micro.surfaceTemp, 1, ' °C')],
+  ]);
 
   // 3. 空氣品質
-  lines.push(`## 三、空氣品質　${srcLabel(micro._sources.airQuality)}`);
-  lines.push(``);
-  lines.push(`| 項目 | 數值 |`);
-  lines.push(`|------|------|`);
-  lines.push(`| PM2.5 | ${micro.pm25.toFixed(0)} µg/m³ |`);
-  lines.push(`| AQI | ${micro.aqi.toFixed(0)} |`);
-  lines.push(``);
+  lines.push(`## 三、空氣品質`, ``);
+  table([
+    ['PM2.5', fmt(micro.pm25, 0, ' µg/m³')],
+    ['AQI', micro.aqi === null ? '僅環境部測站提供' : micro.aqi.toFixed(0)],
+  ]);
 
   // 4. 日照分析
-  lines.push(`## 四、日照分析　${srcLabel(micro._sources.solar)}`);
-  lines.push(``);
-  lines.push(`| 項目 | 數值 |`);
-  lines.push(`|------|------|`);
-  lines.push(`| 當前太陽高度角 | ${micro.solarAltitude.toFixed(1)}° |`);
-  lines.push(`| 當前太陽方位角 | ${micro.solarAzimuth.toFixed(1)}° |`);
-  lines.push(`| 當前遮蔭覆蓋率 | ${micro.shadowCoverage.toFixed(1)} % |`);
-  lines.push(`| 年峰值日照時數 | ${micro.peakSunHours.toFixed(1)} h/d |`);
-  lines.push(`| 年輻射量 | ${micro.annualIrradiance.toFixed(0)} kWh/m² |`);
-  lines.push(`| 建議太陽能板傾角 | ${micro.recommendedTilt}° |`);
-  lines.push(`| 夏至遮蔭 / 冬至遮蔭 / 春秋分 | ${landscape.seasonalSun.summerSolstice.toFixed(0)}% / ${landscape.seasonalSun.winterSolstice.toFixed(0)}% / ${landscape.seasonalSun.equinox.toFixed(0)}% |`);
-  lines.push(``);
+  lines.push(`## 四、日照分析`, ``);
+  table([
+    ['當前太陽高度角', `${micro.solarAltitude.toFixed(1)}°`],
+    ['當前太陽方位角', `${micro.solarAzimuth.toFixed(1)}°`],
+    ['峰值日照時數', fmt(micro.peakSunHours, 1, ' h/d')],
+    ['斜面年日射量', fmt(micro.annualIrradiance, 0, ' kWh/m²')],
+    ['PVGIS 最佳傾角', fmt(micro.recommendedTilt, 0, '°')],
+    ...landscape.seasonalSun.map(s =>
+      [`${s.label}正午太陽高度角 / 晝長`, `${s.noonAltitude.toFixed(1)}° / ${s.dayLength.toFixed(1)} h`] as [string, string]),
+  ]);
 
-  // 5. 微氣候分區
-  lines.push(`## 五、微氣候空間分區`);
-  lines.push(``);
-  lines.push(`- **分區類型**：${landscape.zoning.category}`);
-  lines.push(`- **特徵強度**：${(landscape.zoning.intensity * 10).toFixed(1)} / 10`);
-  lines.push(``);
-  lines.push(`**環境特質：**`);
-  lines.push(``);
-  lines.push(`| 日照 | 溫度 | 風場 | 濕度 |`);
-  lines.push(`|------|------|------|------|`);
-  lines.push(`| ${landscape.aiSummary.traits.sun} | ${landscape.aiSummary.traits.temp} | ${landscape.aiSummary.traits.wind} | ${landscape.aiSummary.traits.water} |`);
-  lines.push(``);
+  // 5. 地形、排水與風環境（規則判讀）
+  lines.push(`## 五、地形、排水與風環境（規則判讀）`, ``);
+  table([
+    ['微氣候分區', zoning ? `${zoning.category}（依據：${zoning.basis}）` : NO_DATA],
+    ['地表排水（依坡度：>20% 快、>5% 中、其餘慢）', drainage.speed ?? NO_DATA],
+    ['積水風險', drainage.waterloggingRisk ?? NO_DATA],
+    ['地表逕流方向（下坡方向）', drainage.flowDirection !== null
+      ? `往${compassZh(drainage.flowDirection)}（${drainage.flowDirection.toFixed(0)}°）`
+      : micro.slopePct === null ? NO_DATA : '平坦，無明顯方向'],
+    ['強風坡地（風速 >5 m/s 且坡度 >10%）', yesNo(urbanStress.windySlope)],
+    ['低風速平坦低地（風速 <3 m/s、海拔 <80 m、坡度 <5%）', yesNo(urbanStress.stagnantLowland)],
+  ]);
 
-  // 6. 土壤與水文
-  lines.push(`## 六、土壤滲透與水文分析`);
-  lines.push(``);
-  lines.push(`| 項目 | 數值 |`);
-  lines.push(`|------|------|`);
-  lines.push(`| 土壤滲透率 | ${landscape.soil.infiltrationRate.toFixed(1)} mm/hr |`);
-  lines.push(`| 排水速度 | ${landscape.soil.drainageSpeed} |`);
-  lines.push(`| 積水風險 | ${landscape.soil.waterloggingRisk} |`);
-  lines.push(`| 主集水範圍 | ${landscape.hydrology.catchmentArea.toFixed(0)} m² |`);
-  lines.push(`| 暴雨積水深度 | ${landscape.hydrology.pondingDepth.toFixed(0)} mm |`);
-  lines.push(`| 地表逕流方向 | ${landscape.hydrology.flowDirection.toFixed(0)}° |`);
-  lines.push(``);
+  // 6. 場址規則檢核
+  const checks = evaluateSiteRules(micro, landscape);
+  lines.push(`## 六、場址規則檢核`, ``, ...formatRuleTable(checks), ``);
 
-  // 7. 都市環境干擾
-  lines.push(`## 七、都市環境干擾（Urban Stress）`);
-  lines.push(``);
-  lines.push(`| 項目 | 數值 |`);
-  lines.push(`|------|------|`);
-  lines.push(`| 地表材質熱指數 | ${(landscape.urbanStress.surfaceHeatIndex * 100).toFixed(0)} % |`);
-  lines.push(`| 地表反照率 (Albedo) | ${landscape.urbanStress.albedo.toFixed(2)} |`);
-  lines.push(`| 推估地表溫度 | ${landscape.urbanStress.surfaceTemp.toFixed(1)} °C |`);
-  lines.push(`| 街谷風效應 | ${landscape.urbanStress.canyonEffect ? '⚠ 偵測到' : '✓ 正常'} |`);
-  lines.push(`| 高壓風切風險 | ${landscape.urbanStress.downdraftRisk ? '⚠ 有風險' : '✓ 穩定'} |`);
-  lines.push(``);
-
-  // 8. AI 植栽建議
-  lines.push(`## 八、AI 植栽決策建議`);
-  lines.push(``);
-
-  const trees   = landscape.recommendations.topPlants.filter(p => p.type === '喬木');
-  const shrubs  = landscape.recommendations.topPlants.filter(p => p.type === '灌木');
-  const ground  = landscape.recommendations.topPlants.filter(p => p.type === '地被');
-
-  if (trees.length) {
-    lines.push(`### 建議喬木`);
-    trees.forEach(p => lines.push(`- ${p.name}（適合度 ${p.score}%）`));
+  // 7. 植栽建議（規則篩選）
+  lines.push(`## 七、植栽建議（規則篩選，非 AI）`, ``);
+  const t = landscape.traits;
+  lines.push(`環境等級：日照 ${t.sun ?? NO_DATA}、溫度 ${t.temp ?? NO_DATA}、風場 ${t.wind ?? NO_DATA}、濕度 ${t.water ?? NO_DATA}`, ``);
+  for (const type of ['喬木', '灌木', '地被'] as const) {
+    const plants = rec.plants.filter(p => p.type === type);
+    if (!plants.length) continue;
+    lines.push(`### 建議${type}`);
+    plants.forEach(p => lines.push(`- ${p.name}（符合：${p.reasons.join('、')}）`));
     lines.push(``);
   }
-  if (shrubs.length) {
-    lines.push(`### 建議灌木`);
-    shrubs.forEach(p => lines.push(`- ${p.name}（適合度 ${p.score}%）`));
-    lines.push(``);
-  }
-  if (ground.length) {
-    lines.push(`### 建議地被`);
-    ground.forEach(p => lines.push(`- ${p.name}（適合度 ${p.score}%）`));
-    lines.push(``);
-  }
-
-  if (landscape.recommendations.avoidPlants.length) {
+  if (!rec.plants.length) lines.push(`- 沒有符合條件的植栽（或資料不足）`, ``);
+  if (rec.avoidPlants.length) {
     lines.push(`### ⚠ 避免種植`);
-    landscape.recommendations.avoidPlants.forEach(a =>
-      lines.push(`- **${a.name}**：${a.reason}`)
-    );
+    rec.avoidPlants.forEach(a => lines.push(`- **${a.name}**：${a.reason}`));
     lines.push(``);
   }
-
-  if (landscape.recommendations.designSuggestions.length) {
+  if (rec.designSuggestions.length) {
     lines.push(`### 設計建議`);
-    landscape.recommendations.designSuggestions.forEach(s => lines.push(`- ${s}`));
+    rec.designSuggestions.forEach(s => lines.push(`- ${s}`));
     lines.push(``);
   }
-
-  if (landscape.recommendations.riskWarnings.length) {
+  if (rec.riskWarnings.length) {
     lines.push(`### 風險警示`);
-    landscape.recommendations.riskWarnings.forEach(w => lines.push(`- ⚠ ${w}`));
+    rec.riskWarnings.forEach(w => lines.push(`- ⚠ ${w}`));
     lines.push(``);
   }
 
-  // 9. 資料來源
-  lines.push(`## 九、資料來源`);
-  lines.push(``);
-  lines.push(`| 資料項目 | 來源 |`);
-  lines.push(`|---------|------|`);
-  lines.push(`| 氣象 | ${micro._sources.weather === 'cwa' ? '中央氣象署 CWA 即時觀測站' : '台灣年均估算值'} |`);
-  lines.push(`| 空氣品質 | ${micro._sources.airQuality === 'epa' ? '環境部 EPA 空品測站' : '中等估算值'} |`);
-  lines.push(`| 太陽能輻射 | ${micro._sources.solar === 'pvgis' ? 'EU PVGIS 太陽能資料庫' : '台灣年均估算值'} |`);
-  lines.push(`| 高程 / 地形 | ${micro._sources.elevation === 'openElevation' ? 'Open-Elevation DEM API' : '平坦地形估算值'} |`);
-  lines.push(`| 行政區 | ${landscape._sources.admin === 'nlsc' ? '國土測繪中心 NLSC' : '查詢失敗'} |`);
-  lines.push(`| 都市計畫分區 | ${landscape._sources.zoning === 'nlscWfs' ? '國土測繪中心 WFS' : '查詢失敗'} |`);
-  lines.push(`| 太陽角度 | 天文公式即時計算 |`);
+  // 8. 資料來源
+  lines.push(`## 八、資料來源`, ``);
+  lines.push(`| 資料項目 | 來源 |`, `|---------|------|`);
+  lines.push(`| 氣象 | ${WEATHER_SRC[micro._sources.weather]} |`);
+  lines.push(`| 空氣品質 | ${AIR_SRC[micro._sources.airQuality]} |`);
+  lines.push(`| 日照 | ${SOLAR_SRC[micro._sources.solar]} |`);
+  lines.push(`| 高程 / 地形 | ${ELEV_SRC[micro._sources.elevation]} |`);
+  lines.push(`| 行政區 | ${landscape._sources.admin === 'nlsc' ? '國土測繪中心 TownVillagePointQuery' : '查詢失敗'} |`);
+  lines.push(`| 都市計畫分區 | ${landscape._sources.zoning === 'nlscWms' ? '國土測繪中心 LUIMAP（圖層色碼判讀）' : '查詢失敗'} |`);
+  lines.push(`| 太陽角度、晝長 | 天文公式 |`);
   lines.push(``);
   lines.push(`---`);
-  lines.push(`*Generated by LandWeaver AI · ${ts}*`);
+  lines.push(`*Generated by LandWeaver · ${ts}*`);
 
   return lines.join('\n');
 }
@@ -256,7 +215,7 @@ export function exportPdf(
     })
     .replace(/(<tr>.*<\/tr>\n?)+/gs, m => `<table>${m}</table>`)
     .replace(/\n\n/g, '</p><p>')
-    .replace(/\*Generated by.*\*/, `<em>Generated by LandWeaver AI · ${ts}</em>`);
+    .replace(/\*Generated by.*\*/, `<em>Generated by LandWeaver · ${ts}</em>`);
 
   const win = window.open('', '_blank');
   if (!win) return;

@@ -1,100 +1,99 @@
+/**
+ * 基地資料：每個數值都直接來自外部資料來源或標準公式（天文、DEM 差分）。
+ * 查詢失敗時欄位為 null，畫面顯示「無資料」，不以估算值或預設值代替。
+ */
 export interface MicroClimateData {
-  temp: number;
-  humidity: number;
-  windSpeed: number;
-  windDirection: number; // 0-360
-  rainfall: number;
-  pm25: number;
-  aqi: number;            // Air Quality Index (replaces airPh)
+  // ── 即時氣象：Open-Meteo 格點，失敗時改用中央氣象署最近測站 ──
+  temp: number | null;
+  humidity: number | null;
+  windSpeed: number | null;
+  windDirection: number | null; // 0-360
+  rainfall: number | null;
+  /** 地表 0 cm 溫度（Open-Meteo 模式值；中央氣象署測站無此項） */
+  surfaceTemp: number | null;
+  // ── 空氣品質：環境部測站；未設定 Key 時改用 Open-Meteo CAMS 模式值（僅 PM2.5）──
+  pm25: number | null;
+  /** 台灣 AQI，只有環境部測站提供 */
+  aqi: number | null;
+  // ── 太陽位置：天文公式，隨時間軸即時計算 ──
   solarAzimuth: number;
   solarAltitude: number;
-  peakSunHours: number;
-  shadowCoverage: number;
-  annualIrradiance: number;
-  recommendedTilt: number;
-  monthlyIrradiance: number[]; // 12 months for chart (normalized 0-100)
-  // Real terrain data from Open-Elevation
-  elevation: number;          // metres above sea level
-  slopePct: number;           // slope in %
-  aspectDeg: number;          // aspect in degrees (0=N, 90=E, 180=S, 270=W)
-  aspectDir: string;          // human-readable e.g. "東南"
-  drainageCoeff: number;      // rational method C value (0–1)
-  planCurvature: number;      // m⁻¹, Laplacian: +凹地(聚水) / -凸地(散水)
-  // Source tracking — 'live' = real API, 'fallback' = estimated value
+  // ── PVGIS-ERA5：最佳傾角斜面的日射量 ──
+  /** 日均峰值日照時數（= 斜面日均日射量 kWh/m²） */
+  peakSunHours: number | null;
+  /** 斜面年日射量 kWh/m² */
+  annualIrradiance: number | null;
+  recommendedTilt: number | null;
+  /** 12 個月斜面日射量，以最大月 = 100 正規化 */
+  monthlyIrradiance: number[] | null;
+  // ── DEM：Open-Elevation，中心點與東西南北約 111 m 共 5 點 ──
+  elevation: number | null;   // m
+  slopePct: number | null;    // %
+  /** 坡面朝向（下坡方向）0=N 90=E；平坦或無資料為 null */
+  aspectDeg: number | null;
+  /** 「東南」等；平坦時為「平坦」，無資料為 null */
+  aspectDir: string | null;
+  /** m⁻¹，Laplacian：+ 凹地（聚水）／− 凸地（散水） */
+  planCurvature: number | null;
   _sources: {
-    weather:    'openMeteo' | 'cwa' | 'fallback';
-    airQuality: 'epa'              | 'fallback';
-    solar:      'pvgis'            | 'fallback';
-    elevation:  'openElevation'    | 'fallback';
+    weather:    'openMeteo' | 'cwa' | 'none';
+    airQuality: 'epa' | 'openMeteo' | 'none';
+    solar:      'pvgis' | 'none';
+    elevation:  'openElevation' | 'none';
   };
 }
 
-export type ZoningCategory = 
-  | '高熱曝曬區' 
-  | '半日照區' 
-  | '陰影區' 
-  | '乾陰區' 
-  | '潮濕積水區' 
-  | '強風區' 
-  | '都市熱島區';
+export type ZoningCategory =
+  | '高熱曝曬區'
+  | '半日照區'
+  | '陰影區'
+  | '乾陰區'
+  | '潮濕積水區'
+  | '強風區'
+  | '高溫低地區';
 
-export interface PlantRecommendation {
+export type Level = '高' | '中' | '低';
+
+export interface PlantMatch {
   id: string;
   name: string;
   type: '喬木' | '灌木' | '地被';
-  score: number;
   lightLimit: string;
   waterLimit: string;
+  /** 符合的篩選條件（規則，非 AI） */
+  reasons: string[];
 }
 
+/** 由 MicroClimateData 以固定規則推導，不含任何估算數值 */
 export interface LandscapeDesignData {
-  zoning: {
-    category: ZoningCategory;
-    intensity: number; // 0-1
-  };
+  /** 微氣候分區（規則分類）；所需資料不全時為 null */
+  zoning: { category: ZoningCategory; basis: string } | null;
   urbanStress: {
-    surfaceHeatIndex: number; // 0-1
-    albedo: number;
-    surfaceTemp: number;
-    windAdjustment: number; // multiplier
-    canyonEffect: boolean;
-    downdraftRisk: boolean;
+    /** 同 MicroClimateData.surfaceTemp */
+    surfaceTemp: number | null;
+    /** 風速 <3 m/s 的平坦低地（海拔 <80 m、坡度 <5%） */
+    stagnantLowland: boolean | null;
+    /** 風速 >5 m/s 且坡度 >10% */
+    windySlope: boolean | null;
   };
-  soil: {
-    infiltrationRate: number; // mm/hr
-    drainageSpeed: '快' | '中' | '慢';
-    waterloggingRisk: '低' | '中' | '高';
+  /** 地表排水：依 DEM 坡度分級（沒有土壤資料，不推估入滲率） */
+  drainage: {
+    speed: '快' | '中' | '慢' | null;
+    waterloggingRisk: Level | null;
+    /** 地表逕流方向 = 下坡方向；平坦或無資料為 null */
+    flowDirection: number | null;
   };
-  hydrology: {
-    flowDirection: number; // 0-360
-    catchmentArea: number; // m2
-    pondingDepth: number; // mm
-  };
-  seasonalSun: {
-    summerSolstice: number; // shadow coverage %
-    winterSolstice: number;
-    equinox: number;
-  };
-  aiSummary: {
-    traits: {
-      sun: '高' | '中' | '低';
-      temp: '高' | '中' | '低';
-      wind: '高' | '中' | '低';
-      water: '高' | '中' | '低';
-    };
-  };
-  landUseZone: string; // Taiwan Urban Planning Zone from NLSC
-  zoningRegulation: {
-    far: number | null;  // 容積率 %
-    bcr: number | null;  // 建蔽率 %
-    note: string;
-  };
+  /** 夏至、春秋分、冬至的正午太陽高度角（°）與晝長（h），天文公式 */
+  seasonalSun: { label: string; noonAltitude: number; dayLength: number }[];
+  /** 植栽篩選用的環境等級（規則） */
+  traits: { sun: Level | null; temp: Level | null; wind: Level | null; water: Level | null };
+  landUseZone: string;
   _sources: {
-    admin:  'nlsc'               | 'fallback';
-    zoning: 'nlscWms' | 'nlscWfs' | 'fallback';
+    admin:  'nlsc' | 'none';
+    zoning: 'nlscWms' | 'none';
   };
   recommendations: {
-    topPlants: PlantRecommendation[];
+    plants: PlantMatch[];
     avoidPlants: { name: string; reason: string }[];
     designSuggestions: string[];
     riskWarnings: string[];
@@ -158,12 +157,11 @@ export interface MapSettings {
   bufferRadius: 0 | 100 | 300 | 500 | 800;
   showMeasureTool: boolean;        // 兩點距離量測
   showElevProfile: boolean;        // 高程剖面（兩點取樣）
-  showImperviousLayer: boolean;    // 不透水面概略
-  showNdviLayer: boolean;          // 綠覆/NDVI 概略
+  showNdviLayer: boolean;          // OSM 綠地標記（公園、林地、草地）
   showBuildingDensity: boolean;    // 建物密度熱區
   showStreetTreeLayer: boolean;    // 行道樹（台北市官方 / OSM fallback）
   // ── 交通區位分析
-  showRoadLayer: boolean;          // 道路分級 + 壓力標籤
+  showRoadLayer: boolean;          // OSM 道路等級
   showPoiLayer: boolean;           // 生活機能 POI（學校/公園/市場/公共設施）
   currentTime: Date;
   selectedBase: {
@@ -225,7 +223,6 @@ export const INITIAL_SETTINGS: MapSettings = {
   bufferRadius: 0,
   showMeasureTool: false,
   showElevProfile: false,
-  showImperviousLayer: false,
   showNdviLayer: false,
   showBuildingDensity: false,
   showStreetTreeLayer: false,

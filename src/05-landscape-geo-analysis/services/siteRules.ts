@@ -2,9 +2,10 @@
  * Site rule checklist — no AI / API calls.
  *
  * Each rule compares one value of the clicked point's site data with a fixed
- * threshold and reports whether it triggers. The panel lists the results, and
- * `formatRulesForAI` turns them into a Markdown table the user can paste into
- * any AI chat for the actual design analysis.
+ * threshold and reports whether it triggers. A value that could not be fetched
+ * is reported as「未判讀」, never filled with an estimate. The panel lists the
+ * results, and `formatRulesForAI` turns them into a Markdown table the user can
+ * paste into any AI chat for the actual design analysis.
  */
 import { MicroClimateData, LandscapeDesignData } from '../types';
 
@@ -25,145 +26,158 @@ export interface RuleCheck {
 type Outcome = Pick<RuleCheck, 'status' | 'level' | 'note'>;
 const hit = (level: RuleLevel, note: string): Outcome => ({ status: 'hit', level, note });
 const pass = (note?: string): Outcome => ({ status: 'pass', note });
+const NO_DATA = '無資料';
+const na = (note: string): Outcome & { value: string } => ({ status: 'na', value: NO_DATA, note });
 
 const f0 = (n: number) => n.toFixed(0);
 const f1 = (n: number) => n.toFixed(1);
-const est = (source: string) => (source === 'fallback' ? '（估算）' : '');
 
 const CURVATURE_EPS = 1e-5; // m⁻¹; smaller magnitudes count as flat
+
+const SOURCE_LABEL: Record<string, string> = {
+  openMeteo: 'Open-Meteo', cwa: '中央氣象署', epa: '環境部', pvgis: 'PVGIS',
+  openElevation: 'Open-Elevation', nlscWms: '國土測繪中心', none: '查詢失敗',
+};
+const src = (s: string) => SOURCE_LABEL[s] ?? s;
 
 export function evaluateSiteRules(m: MicroClimateData, l: LandscapeDesignData): RuleCheck[] {
   const checks: RuleCheck[] = [];
   const add = (c: Omit<RuleCheck, 'id'>) =>
     checks.push({ id: `R${String(checks.length + 1).padStart(2, '0')}`, ...c });
 
-  const wx = est(m._sources.weather);
-  const elev = est(m._sources.elevation);
-  const sun = est(m._sources.solar);
-  const { category, intensity } = l.zoning;
-  const { surfaceTemp, canyonEffect, downdraftRisk } = l.urbanStress;
-  const { waterloggingRisk, infiltrationRate, drainageSpeed } = l.soil;
+  const noElev = '高程資料查詢失敗';
+  const noWx = '氣象資料查詢失敗';
 
   // ── 地形 ──
+  const slope = m.slopePct;
   add({
-    group: '地形', name: '坡度',
-    value: `${f1(m.slopePct)}%（${m.aspectDir}向）${elev}`,
-    threshold: '≥15% 坡地 · ≥30% 陡坡',
-    ...(m.slopePct >= 30 ? hit('高', '陡坡：表土沖蝕、邊坡滑動風險')
-      : m.slopePct >= 15 ? hit('中', '坡地：降雨逕流集中、坡面易沖蝕')
-      : pass()),
+    group: '地形', name: '坡度', threshold: '≥15% 坡地 · ≥30% 陡坡',
+    ...(slope === null ? na(noElev) : {
+      value: `${f1(slope)}%（${m.aspectDeg === null ? '平坦' : `${m.aspectDir}向`}）`,
+      ...(slope >= 30 ? hit('高', '陡坡：表土沖蝕、邊坡滑動風險')
+        : slope >= 15 ? hit('中', '坡地：降雨逕流集中、坡面易沖蝕')
+        : pass()),
+    }),
   });
 
   const curv = m.planCurvature;
-  const curvLabel = curv > CURVATURE_EPS ? '凹地' : curv < -CURVATURE_EPS ? '凸地' : '平直';
+  const curvLabel = curv === null ? '' : curv > CURVATURE_EPS ? '凹地' : curv < -CURVATURE_EPS ? '凸地' : '平直';
   add({
-    group: '地形', name: '地表曲率',
-    value: `${curvLabel}（${curv.toExponential(1)} m⁻¹）${elev}`,
-    threshold: '> 0 為聚水凹地',
-    ...(curvLabel === '凹地' ? hit('低', '凹地：周邊地表逕流向基地匯集') : pass()),
+    group: '地形', name: '地表曲率', threshold: '> 0 為聚水凹地',
+    ...(curv === null ? na(noElev) : {
+      value: `${curvLabel}（${curv.toExponential(1)} m⁻¹）`,
+      ...(curvLabel === '凹地' ? hit('低', '凹地：周邊地表逕流向基地匯集') : pass()),
+    }),
   });
 
+  const el = m.elevation;
   add({
-    group: '地形', name: '海拔',
-    value: `${f0(m.elevation)} m${elev}`,
-    threshold: '≥500 m 中海拔',
-    ...(m.elevation >= 500
-      ? hit('低', `均溫較平地低約 ${f1(m.elevation * 0.006)}°C（遞減率 0.6°C/100 m），留意寒害`)
-      : pass()),
+    group: '地形', name: '海拔', threshold: '≥500 m 中海拔',
+    ...(el === null ? na(noElev) : {
+      value: `${f0(el)} m`,
+      ...(el >= 500
+        ? hit('低', `均溫較平地低約 ${f1(el * 0.006)}°C（遞減率 0.6°C/100 m），留意寒害`)
+        : pass()),
+    }),
   });
 
   // ── 水文 ──
-  const ponding = l.hydrology.pondingDepth > 0 ? `，暴雨積水深約 ${f0(l.hydrology.pondingDepth)} mm` : '';
+  const { speed, waterloggingRisk } = l.drainage;
   add({
     group: '水文', name: '積水風險',
-    value: `${waterloggingRisk}（入滲 ${f0(infiltrationRate)} mm/hr）`,
-    threshold: '風險 中／高',
-    ...(waterloggingRisk === '高' ? hit('高', `排水${drainageSpeed}${ponding}，強降雨易滯水`)
-      : waterloggingRisk === '中' ? hit('中', `排水${drainageSpeed}${ponding}，強降雨時可能滯水`)
-      : pass(`排水${drainageSpeed}`)),
+    threshold: '坡度 ≤5% 且雨量 >3 mm 或濕度 >80% 為高；坡度 >20% 為低',
+    ...(waterloggingRisk === null ? na(speed === null ? noElev : noWx) : {
+      value: `${waterloggingRisk}（地表排水${speed}）`,
+      ...(waterloggingRisk === '高' ? hit('高', '地勢平緩且正逢降雨或高濕，強降雨易滯水')
+        : waterloggingRisk === '中' ? hit('中', '地表排水不快，強降雨時可能滯水')
+        : pass('坡度大，地表排水快')),
+    }),
   });
 
   // ── 熱環境 ──
+  const st = m.surfaceTemp;
   add({
-    group: '熱環境', name: '地表溫度',
-    value: `${f1(surfaceTemp)}°C${wx}`,
-    threshold: '>35°C 高溫 · >40°C 酷熱',
-    ...(surfaceTemp > 40 ? hit('高', '鋪面強烈蓄熱，戶外熱不適')
-      : surfaceTemp > 35 ? hit('中', '鋪面蓄熱，夏季戶外熱不適')
-      : pass()),
+    group: '熱環境', name: '地表溫度', threshold: '>35°C 高溫 · >40°C 酷熱',
+    ...(st === null ? na('地表溫度只有 Open-Meteo 提供，本次查詢失敗') : {
+      value: `${f1(st)}°C（模式值）`,
+      ...(st > 40 ? hit('高', '地表強烈蓄熱，戶外熱不適')
+        : st > 35 ? hit('中', '地表蓄熱，戶外熱不適')
+        : pass()),
+    }),
   });
 
   // ── 風環境 ──
+  const ws = m.windSpeed;
   add({
-    group: '風環境', name: '平均風速',
-    value: `${f1(m.windSpeed)} m/s${wx}`,
-    threshold: '≥5 m/s 強風',
-    ...(m.windSpeed >= 5 ? hit('中', '淺根植栽易倒伏、蒸散失水快') : pass()),
+    group: '風環境', name: '平均風速', threshold: '≥5 m/s 強風',
+    ...(ws === null ? na(noWx) : {
+      value: `${f1(ws)} m/s`,
+      ...(ws >= 5 ? hit('中', '淺根植栽易倒伏、蒸散失水快') : pass()),
+    }),
+  });
+  const { windySlope, stagnantLowland } = l.urbanStress;
+  add({
+    group: '風環境', name: '強風坡地', threshold: '風速 >5 m/s 且坡度 >10%',
+    ...(windySlope === null ? na(ws === null ? noWx : noElev) : {
+      value: windySlope ? '是' : '否',
+      ...(windySlope ? hit('中', '強風吹過坡面，行人舒適與植栽穩定受影響') : pass()),
+    }),
   });
   add({
-    group: '風環境', name: '坡地下衝風',
-    value: downdraftRisk ? '有' : '無',
-    threshold: '風速 >5 m/s 且坡度 >10%',
-    ...(downdraftRisk ? hit('中', '強風沿坡下衝，行人舒適與植栽穩定受影響') : pass()),
-  });
-  add({
-    group: '風環境', name: '街谷效應',
-    value: canyonEffect ? '有' : '無',
-    threshold: '風速 <3 m/s 的平坦低地（海拔 <80 m、坡度 <5%）',
-    ...(canyonEffect ? hit('中', '通風不良，熱與汙染物滯留') : pass()),
+    group: '風環境', name: '低風速平坦低地', threshold: '風速 <3 m/s 且海拔 <80 m、坡度 <5%',
+    ...(stagnantLowland === null ? na(ws === null ? noWx : noElev) : {
+      value: stagnantLowland ? '是' : '否',
+      ...(stagnantLowland ? hit('中', '通風可能不良，熱與汙染物易滯留') : pass()),
+    }),
   });
 
   // ── 日照 ──
   const ph = m.peakSunHours;
   add({
-    group: '日照', name: '日照峰值',
-    value: `${f1(ph)} h/d${sun}`,
-    threshold: '<3.2 h/d 偏低 · <2.5 h/d 不足',
-    ...(ph < 2.5 ? hit('中', '日照不足，喜陽植栽生長受限')
-      : ph < 3.2 ? hit('低', '日照偏低，喜陽植栽表現受影響')
-      : pass()),
+    group: '日照', name: '峰值日照', threshold: '<3.2 h/d 偏低 · <2.5 h/d 不足',
+    ...(ph === null ? na('PVGIS 查詢失敗') : {
+      value: `${f1(ph)} h/d`,
+      ...(ph < 2.5 ? hit('中', '日照不足，喜陽植栽生長受限')
+        : ph < 3.2 ? hit('低', '日照偏低，喜陽植栽表現受影響')
+        : pass()),
+    }),
   });
 
-  // ── 空氣（估算值不判讀）──
-  if (m._sources.airQuality === 'fallback') {
-    add({
-      group: '空氣', name: 'PM2.5', value: '無即時資料', threshold: '>35 µg/m³',
-      status: 'na', note: '無環境部即時測站資料，估算值不判讀',
-    });
-  } else {
-    add({
-      group: '空氣', name: 'PM2.5',
-      value: `${f0(m.pm25)} µg/m³（AQI ${f0(m.aqi)}）`,
-      threshold: '>35 µg/m³ 敏感族群不健康 · >54 µg/m³ 不健康',
-      ...(m.pm25 > 54 ? hit('高', 'AQI 不健康等級')
-        : m.pm25 > 35 ? hit('中', 'AQI 對敏感族群不健康等級')
-        : pass()),
-    });
-  }
+  // ── 空氣 ──
+  const pm = m.pm25;
+  const pmSource = m._sources.airQuality === 'epa' ? '環境部測站' : 'Open-Meteo CAMS 模式值，非測站觀測';
+  add({
+    group: '空氣', name: 'PM2.5', threshold: '>35 µg/m³ 對敏感族群不健康 · >54 µg/m³ 不健康',
+    ...(pm === null ? na('環境部與 Open-Meteo 空品查詢皆失敗') : {
+      value: `${f0(pm)} µg/m³${m.aqi !== null ? `（AQI ${f0(m.aqi)}）` : ''}`,
+      ...(pm > 54 ? hit('高', `不健康等級（${pmSource}）`)
+        : pm > 35 ? hit('中', `對敏感族群不健康等級（${pmSource}）`)
+        : pass(pmSource)),
+    }),
+  });
 
   // ── 參考資訊（不判定，供分析使用）──
   add({
-    group: '綜合', name: '微氣候分區',
-    value: `${category}（強度 ${f1(intensity * 10)}/10）`,
-    threshold: '—', status: 'info',
-    note: '依日照、風速、氣溫、雨量與排水綜合分類',
+    group: '綜合', name: '微氣候分區', threshold: '—',
+    ...(l.zoning === null
+      ? na('需要日照、氣象與高程資料')
+      : { value: l.zoning.category, status: 'info' as const, note: `依據：${l.zoning.basis}` }),
   });
   add({
-    group: '能源', name: '太陽能潛力',
-    value: `年輻射 ${f0(m.annualIrradiance)} kWh/m²${sun}`,
-    threshold: '日照峰值 ≥4 h/d',
-    status: 'info',
-    note: ph >= 4 ? `具設置潛力，建議傾角約 ${m.recommendedTilt}°` : '日照有限，設置效益偏低',
+    group: '能源', name: '太陽能潛力', threshold: '峰值日照 ≥4 h/d',
+    ...(ph === null || m.annualIrradiance === null ? na('PVGIS 查詢失敗') : {
+      value: `斜面年日射量 ${f0(m.annualIrradiance)} kWh/m²`,
+      status: 'info' as const,
+      note: ph >= 4 ? `具設置潛力，PVGIS 最佳傾角 ${m.recommendedTilt}°` : '日照有限，設置效益偏低',
+    }),
   });
-
-  const { far, bcr, note } = l.zoningRegulation;
   add({
-    group: '法規', name: '土地使用分區',
-    value: `${l.landUseZone}${est(l._sources.zoning)}`,
-    threshold: '—', status: 'info',
-    note: bcr !== null
-      ? `建蔽率 ${bcr}%、容積率 ${far ?? '—'}%（${note}），法定空地至少約 ${100 - bcr}%`
-      : note,
+    group: '法規', name: '土地使用分區', threshold: '—',
+    value: l.landUseZone,
+    status: l._sources.zoning === 'none' ? 'na' : 'info',
+    note: l._sources.zoning === 'none'
+      ? '國土測繪中心查詢失敗'
+      : '依 LUIMAP 色碼判讀；容積率、建蔽率依各都市計畫書規定，本工具不提供推估值',
   });
 
   return checks;
@@ -189,12 +203,18 @@ export function ruleStatusLabel(c: RuleCheck): string {
   }
 }
 
-const SOURCE_LABEL: Record<string, string> = {
-  openMeteo: 'Open-Meteo', cwa: '中央氣象署', epa: '環境部', pvgis: 'PVGIS',
-  openElevation: 'Open-Elevation', nlscWms: '國土測繪中心', nlscWfs: '國土測繪中心', fallback: '估算值',
-};
-const src = (s: string) => SOURCE_LABEL[s] ?? s;
 const cell = (s: string) => s.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+const show = (v: number | null, digits: number, unit: string) => (v === null ? NO_DATA : `${v.toFixed(digits)}${unit}`);
+
+/** Markdown table of the checks (also used in the exported report). */
+export function formatRuleTable(checks: RuleCheck[]): string[] {
+  return [
+    '| 編號 | 類別 | 項目 | 數值 | 判準 | 結果 | 說明 |',
+    '|---|---|---|---|---|---|---|',
+    ...checks.map(c =>
+      `| ${c.id} | ${c.group} | ${c.name} | ${cell(c.value)} | ${cell(c.threshold)} | ${ruleStatusLabel(c)} | ${cell(c.note ?? '')} |`),
+  ];
+}
 
 /** Markdown summary + table, ready to paste into an AI chat. */
 export function formatRulesForAI(
@@ -209,14 +229,11 @@ export function formatRulesForAI(
     '',
     ...(point ? [`- 座標：${point.lat.toFixed(5)}°N, ${point.lng.toFixed(5)}°E`] : []),
     `- 土地使用分區：${l.landUseZone}`,
-    `- 當下氣象：氣溫 ${f1(m.temp)}°C、濕度 ${f0(m.humidity)}%、雨量 ${f1(m.rainfall)} mm、風向 ${f0(m.windDirection)}°`,
+    `- 當下氣象：氣溫 ${show(m.temp, 1, '°C')}、濕度 ${show(m.humidity, 0, '%')}、雨量 ${show(m.rainfall, 1, ' mm')}、風向 ${show(m.windDirection, 0, '°')}`,
     `- 資料來源：氣象 ${src(m._sources.weather)} · 空品 ${src(m._sources.airQuality)} · 日照 ${src(m._sources.solar)} · 高程 ${src(m._sources.elevation)} · 分區 ${src(l._sources.zoning)}`,
     `- 觸發 ${hits.length} 項：${hits.length ? hits.map(c => `${c.name}（${c.level}）`).join('、') : '無'}`,
     '',
-    '| 編號 | 類別 | 項目 | 數值 | 判準 | 結果 | 說明 |',
-    '|---|---|---|---|---|---|---|',
-    ...checks.map(c =>
-      `| ${c.id} | ${c.group} | ${c.name} | ${cell(c.value)} | ${cell(c.threshold)} | ${ruleStatusLabel(c)} | ${cell(c.note ?? '')} |`),
+    ...formatRuleTable(checks),
   ];
   return lines.join('\n');
 }

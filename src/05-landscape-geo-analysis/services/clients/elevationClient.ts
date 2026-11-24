@@ -8,21 +8,26 @@ import { withTimeout } from '../../utils/withTimeout';
 export interface ElevationResult {
   elevation: number;
   slopePct: number;
-  aspectDeg: number;
+  /** 坡面朝向（下坡方向），平坦時為 null */
+  aspectDeg: number | null;
+  /** 「東南」等，平坦時為「平坦」 */
   aspectDir: string;
-  drainageCoeff: number;
   planCurvature: number;  // m⁻¹, Laplacian of elevation
 }
 
+/** 坡度低於此值視為平坦，不判定坡向 */
+const FLAT_SLOPE_PCT = 1;
+
 // ============================================================
 // API 4：Open-Elevation — DEM 高程 / 坡度 / 坡向（免費，無需 Key）
+// 中心點與東西南北各約 111 m 共 5 點，以中央差分計算
 // ============================================================
 export async function fetchElevationData(
   lat: number,
   lng: number,
   signal?: AbortSignal,
 ): Promise<ElevationResult> {
-  const d = 0.001; // ~111 m
+  const d = 0.001;
   const points = [
     { latitude: lat,     longitude: lng     }, // center
     { latitude: lat + d, longitude: lng     }, // N
@@ -41,27 +46,28 @@ export async function fetchElevationData(
   if (!res.ok) throw new Error(`Open-Elevation 錯誤：${res.status}`);
   const json = await res.json();
 
-  const [center, north, south, east, west] = json.results.map((r: any) => r.elevation as number);
-  const mPerStep = 111000 * d;
+  const elev = (json.results ?? []).map((r: any) => r.elevation as number);
+  if (elev.length !== 5 || !elev.every(Number.isFinite)) throw new Error('Open-Elevation 回傳不完整');
+  const [center, north, south, east, west] = elev;
+  const mNS = 111_320 * d;                                   // 南北 1 步的距離
+  const mEW = 111_320 * d * Math.cos(lat * Math.PI / 180);   // 東西 1 步的距離（隨緯度縮短）
 
-  // Slope gradient (first-order finite difference)
-  const slopeNS  = (north - south) / (2 * mPerStep);
-  const slopeEW  = (east  - west)  / (2 * mPerStep);
-  const slopePct = Math.round(Math.sqrt(slopeNS ** 2 + slopeEW ** 2) * 1000) / 10;
+  // 高程梯度（中央差分）：dzdx 向東為正、dzdy 向北為正
+  const dzdx = (east - west) / (2 * mEW);
+  const dzdy = (north - south) / (2 * mNS);
+  const slopePct = Math.round(Math.hypot(dzdx, dzdy) * 1000) / 10;
 
-  // Aspect
-  const aspectDeg = Math.round(((Math.atan2(east - west, north - south) * 180 / Math.PI) + 360) % 360);
-  const aspectDir = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'][Math.round(aspectDeg / 45) % 8];
+  // 坡向 = 下坡方向（梯度反方向），以北為 0° 順時針
+  const flat = slopePct < FLAT_SLOPE_PCT;
+  const aspectDeg = flat ? null : Math.round((Math.atan2(-dzdx, -dzdy) * 180 / Math.PI + 360) % 360);
+  const aspectDir = aspectDeg === null
+    ? '平坦'
+    : ['北', '東北', '東', '東南', '南', '西南', '西', '西北'][Math.round(aspectDeg / 45) % 8];
 
-  // Drainage coefficient from slope (rational method C value)
-  const drainageCoeff = Math.round(Math.min(0.2 + slopePct * 0.02, 0.95) * 100) / 100;
+  // Plan Curvature（離散 Laplacian）：正 = 凹地（水匯聚）、負 = 凸地（水發散）
+  const planCurvature = (east + west - 2 * center) / (mEW * mEW) + (north + south - 2 * center) / (mNS * mNS);
 
-  // Plan Curvature (discrete Laplacian, 2nd-order finite difference)
-  // (∂²z/∂x² + ∂²z/∂y²) / mPerStep²
-  // Positive = concave hollow (水匯聚), Negative = convex ridge (水發散)
-  const planCurvature = (north + south + east + west - 4 * center) / (mPerStep * mPerStep);
-
-  return { elevation: center, slopePct, aspectDeg, aspectDir, drainageCoeff, planCurvature };
+  return { elevation: center, slopePct, aspectDeg, aspectDir, planCurvature };
 }
 
 // ============================================================

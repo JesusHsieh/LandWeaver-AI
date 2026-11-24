@@ -138,10 +138,24 @@ const StatusBadge = ({
   </span>
 );
 
+const NO_DATA = '無資料';
+/** 數值 + 單位；查詢失敗（null）顯示「無資料」 */
+const fmt = (v: number | null, digits: number, unit = '') => (v === null ? NO_DATA : `${v.toFixed(digits)}${unit}`);
+const yesNo = (v: boolean | null) => (v === null ? NO_DATA : v ? '是' : '否');
+
 const windDir = (deg: number) => {
   const d = ['N','NE','E','SE','S','SW','W','NW'];
   return d[Math.round(deg / 45) % 8];
 };
+const compassZh = (deg: number) => ['北', '東北', '東', '東南', '南', '西南', '西', '西北'][Math.round(deg / 45) % 8];
+
+const CURVATURE_EPS = 1e-5;
+const curvatureLabel = (c: number | null) =>
+  c === null ? NO_DATA : c > CURVATURE_EPS ? '凹地（聚水）' : c < -CURVATURE_EPS ? '凸地（散水）' : '平直';
+
+const Note = ({ children }: { children: React.ReactNode }) => (
+  <div className="text-[8px] mt-1 leading-snug" style={{ color: '#555' }}>{children}</div>
+);
 
 export const RightPanel: React.FC<RightPanelProps> = ({
   settings, microData: data, landscapeData,
@@ -163,6 +177,20 @@ export const RightPanel: React.FC<RightPanelProps> = ({
     setCopyState((await copyText(text)) ? 'ok' : 'fail');
   };
 
+  const failures = [
+    data?._sources.weather === 'none'    && '氣象（Open-Meteo / 中央氣象署）',
+    data?._sources.airQuality === 'none' && '空氣品質',
+    data?._sources.solar === 'none'      && '日照（PVGIS）',
+    data?._sources.elevation === 'none'  && '高程（Open-Elevation）',
+    landscapeData?._sources.zoning === 'none' && '都市計畫分區',
+  ].filter(Boolean) as string[];
+  const alerts = [
+    data?.pm25 != null && data.pm25 > 35 && `PM2.5 偏高（${data.pm25.toFixed(0)} µg/m³）`,
+    landscapeData?.drainage.waterloggingRisk === '高' && '積水高風險',
+    data?.surfaceTemp != null && data.surfaceTemp > 38 && `地表高溫（${data.surfaceTemp.toFixed(1)}°C，模式值）`,
+    landscapeData?.urbanStress.stagnantLowland && '低風速平坦低地，通風可能不良',
+  ].filter(Boolean) as string[];
+
   return (
     <aside
       className="h-full flex flex-col z-10"
@@ -180,9 +208,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         <span className="text-[11px] font-bold tracking-[0.2em] uppercase text-white">Info</span>
         {data && (
           <StatusBadge
-            ok={data._sources.weather !== 'fallback'}
+            ok={data._sources.weather !== 'none'}
             labelOk={data._sources.weather === 'openMeteo' ? 'Open-Meteo ✓' : 'CWA ✓'}
-            labelFail="估算值"
+            labelFail="氣象查詢失敗"
           />
         )}
       </div>
@@ -200,17 +228,20 @@ export const RightPanel: React.FC<RightPanelProps> = ({
               />
               {data && (
                 <>
-                  <DataRow label="高程 Elevation" value={`${data.elevation.toFixed(1)} m`} />
-                  <DataRow label="坡度 / 坡向" value={`${data.slopePct.toFixed(1)}% · ${data.aspectDir}`} />
+                  <DataRow label="高程 Elevation" value={fmt(data.elevation, 1, ' m')} />
+                  <DataRow
+                    label="坡度 / 坡向"
+                    value={data.slopePct === null ? NO_DATA : `${data.slopePct.toFixed(1)}% · ${data.aspectDir}`}
+                  />
                 </>
               )}
               {landscapeData && (
                 <>
-                  <DataRow label="都市計畫分區" value={landscapeData.landUseZone ?? '查詢中...'} />
+                  <DataRow label="都市計畫分區" value={landscapeData.landUseZone} />
                   <div className="pt-0.5">
                     <StatusBadge
-                      ok={landscapeData._sources.zoning !== 'fallback'}
-                      labelOk="NLSC WMS ✓"
+                      ok={landscapeData._sources.zoning !== 'none'}
+                      labelOk="NLSC LUIMAP ✓"
                       labelFail="分區查詢失敗"
                     />
                   </div>
@@ -225,11 +256,20 @@ export const RightPanel: React.FC<RightPanelProps> = ({
           <section>
             <div className="gis-section-label mb-2">Weather · 即時氣象</div>
             <div>
-              <DataRow label="溫度" value={data ? `${data.temp.toFixed(1)} °C` : '--'} />
-              <DataRow label="濕度" value={data ? `${data.humidity.toFixed(0)} %` : '--'} />
-              <DataRow label="風速 / 向" value={data ? `${data.windSpeed.toFixed(1)} m/s · ${windDir(data.windDirection)}` : '--'} />
-              <DataRow label="雨量" value={data ? `${data.rainfall.toFixed(1)} mm` : '--'} />
+              <DataRow label="溫度" value={data ? fmt(data.temp, 1, ' °C') : '--'} />
+              <DataRow label="濕度" value={data ? fmt(data.humidity, 0, ' %') : '--'} />
+              <DataRow
+                label="風速 / 向"
+                value={data
+                  ? data.windSpeed === null
+                    ? NO_DATA
+                    : `${data.windSpeed.toFixed(1)} m/s${data.windDirection === null ? '' : ` · ${windDir(data.windDirection)}`}`
+                  : '--'}
+              />
+              <DataRow label="雨量" value={data ? fmt(data.rainfall, 1, ' mm') : '--'} />
+              <DataRow label="地表溫度（模式）" value={data ? fmt(data.surfaceTemp, 1, ' °C') : '--'} />
             </div>
+            {data?._sources.weather === 'cwa' && <Note>中央氣象署測站無地表溫度</Note>}
           </section>
         )}
 
@@ -240,24 +280,27 @@ export const RightPanel: React.FC<RightPanelProps> = ({
             <div>
               <DataRow
                 label="PM2.5"
-                value={data ? `${data.pm25.toFixed(0)} µg/m³` : '--'}
-                valueColor={data && data.pm25 > 35 ? '#F44336' : undefined}
+                value={data ? fmt(data.pm25, 0, ' µg/m³') : '--'}
+                valueColor={data?.pm25 != null && data.pm25 > 35 ? '#F44336' : undefined}
               />
               <DataRow
                 label="AQI"
-                value={data ? `${data.aqi.toFixed(0)}` : '--'}
-                valueColor={data && data.aqi > 100 ? '#FF9800' : undefined}
+                value={data ? (data.aqi === null ? '僅環境部測站提供' : data.aqi.toFixed(0)) : '--'}
+                valueColor={data?.aqi != null && data.aqi > 100 ? '#FF9800' : undefined}
               />
               {data && (
                 <div className="pt-1">
                   <StatusBadge
-                    ok={data._sources.airQuality === 'epa'}
-                    labelOk="EPA API ✓"
-                    labelFail="估算值"
+                    ok={data._sources.airQuality !== 'none'}
+                    labelOk={data._sources.airQuality === 'epa' ? '環境部測站 ✓' : 'CAMS 模式值 ✓'}
+                    labelFail="空品查詢失敗"
                   />
                 </div>
               )}
             </div>
+            {data?._sources.airQuality === 'openMeteo' && (
+              <Note>未設定環境部 Key，改用 Open-Meteo CAMS 模式值（非測站觀測）</Note>
+            )}
           </section>
         )}
 
@@ -265,7 +308,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         {settings.showShadows && (
           <section>
             <div className="gis-section-label mb-2">Solar · 日照分析</div>
-            {data ? (
+            {data?.monthlyIrradiance ? (
               <IrradianceChart data={data.monthlyIrradiance} />
             ) : (
               <div className="flex items-end gap-[2px]" style={{ height: '48px' }}>
@@ -280,30 +323,30 @@ export const RightPanel: React.FC<RightPanelProps> = ({
               ))}
             </div>
             <div>
-              <DataRow label="日照覆蓋率" value={data ? `${(100 - data.shadowCoverage).toFixed(1)} %` : '--'} />
-              <DataRow label="峰值日照時數" value={data ? `${data.peakSunHours.toFixed(1)} h/d` : '--'} />
-              <DataRow label="年輻射量" value={data ? `${data.annualIrradiance.toFixed(0)} kWh/m²` : '--'} />
+              <DataRow label="目前太陽高度角" value={data ? `${data.solarAltitude.toFixed(1)}°` : '--'} />
+              <DataRow label="目前太陽方位角" value={data ? `${data.solarAzimuth.toFixed(1)}°` : '--'} />
+              <DataRow label="峰值日照時數" value={data ? fmt(data.peakSunHours, 1, ' h/d') : '--'} />
+              <DataRow label="斜面年日射量" value={data ? fmt(data.annualIrradiance, 0, ' kWh/m²') : '--'} />
             </div>
             {landscapeData && (
               <div className="mt-2 grid grid-cols-3 gap-1">
-                {[
-                  { label: '夏至遮蔭', value: landscapeData.seasonalSun.summerSolstice },
-                  { label: '冬至遮蔭', value: landscapeData.seasonalSun.winterSolstice },
-                  { label: '春秋分', value: landscapeData.seasonalSun.equinox },
-                ].map(({ label, value }) => (
+                {landscapeData.seasonalSun.map(({ label, noonAltitude, dayLength }) => (
                   <div
                     key={label}
                     className="text-center py-1.5 rounded"
                     style={{ background: '#1C1C1C' }}
+                    title={`${label}正午太陽高度角 ${noonAltitude.toFixed(1)}°，晝長 ${dayLength.toFixed(1)} 小時`}
                   >
-                    <div className="text-[8px]" style={{ color: '#555' }}>{label}</div>
+                    <div className="text-[8px]" style={{ color: '#555' }}>{label}正午</div>
                     <div className="text-[11px] font-mono" style={{ color: '#F0F0F0' }}>
-                      {value.toFixed(0)}%
+                      {noonAltitude.toFixed(0)}°
                     </div>
+                    <div className="text-[8px] font-mono" style={{ color: '#666' }}>晝長 {dayLength.toFixed(1)} h</div>
                   </div>
                 ))}
               </div>
             )}
+            <Note>月分布、峰值日照、年日射量：PVGIS-ERA5 最佳傾角斜面；太陽角度：天文公式</Note>
           </section>
         )}
 
@@ -312,119 +355,94 @@ export const RightPanel: React.FC<RightPanelProps> = ({
           <section>
             <div className="gis-section-label mb-2">Terrain · 地貌坡度</div>
             <div>
-              <DataRow label="高程 DEM" value={data ? `${data.elevation.toFixed(1)} m` : '--'} />
-              <DataRow label="坡度" value={data ? `${data.slopePct.toFixed(1)} %` : '--'} />
-              <DataRow label="坡向 Aspect" value={data ? `${data.aspectDir} · ${data.aspectDeg.toFixed(0)}°` : '--'} />
-              <DataRow label="排水係數 C" value={data ? data.drainageCoeff.toFixed(2) : '--'} />
+              <DataRow label="高程 DEM" value={data ? fmt(data.elevation, 1, ' m') : '--'} />
+              <DataRow label="坡度" value={data ? fmt(data.slopePct, 1, ' %') : '--'} />
+              <DataRow
+                label="坡向 Aspect"
+                value={data
+                  ? data.aspectDeg === null ? (data.aspectDir ?? NO_DATA) : `${data.aspectDir} · ${data.aspectDeg.toFixed(0)}°`
+                  : '--'}
+              />
+              <DataRow label="地表曲率" value={data ? curvatureLabel(data.planCurvature) : '--'} />
             </div>
+            <Note>Open-Elevation DEM，基地與東西南北約 111 m 共 5 點差分</Note>
           </section>
         )}
 
-        {/* ── 土壤滲透 ── */}
+        {/* ── 地表排水 ── */}
         {settings.showSoilAnalysis && landscapeData && (
           <section>
-            <div className="gis-section-label mb-2">Soil · 土壤滲透</div>
+            <div className="gis-section-label mb-2">Drainage · 地表排水</div>
             <div>
-              <DataRow label="滲透率" value={`${landscapeData.soil.infiltrationRate.toFixed(1)} mm/hr`} />
-              <DataRow label="排水速度" value={landscapeData.soil.drainageSpeed} />
-              <DataRow label="積水風險" value={landscapeData.soil.waterloggingRisk}
-                valueColor={landscapeData.soil.waterloggingRisk === '高' ? '#F44336' : undefined} />
+              <DataRow label="地表排水（依坡度）" value={landscapeData.drainage.speed ?? NO_DATA} />
+              <DataRow
+                label="積水風險"
+                value={landscapeData.drainage.waterloggingRisk ?? NO_DATA}
+                valueColor={landscapeData.drainage.waterloggingRisk === '高' ? '#F44336' : undefined}
+              />
             </div>
+            <Note>坡度 &gt;20% 快、&gt;5% 中、其餘慢；沒有土壤資料，不推估入滲率</Note>
           </section>
         )}
 
-        {/* ── 水文 ── */}
+        {/* ── 逕流方向 ── */}
         {settings.showHydrology && landscapeData && (
           <section>
-            <div className="gis-section-label mb-2">Hydrology · 水文</div>
+            <div className="gis-section-label mb-2">Hydrology · 逕流方向</div>
             <div>
-              <DataRow label="集水範圍" value={`${landscapeData.hydrology.catchmentArea.toFixed(1)} m²`} />
-              <DataRow label="暴雨積水深" value={`${landscapeData.hydrology.pondingDepth.toFixed(0)} mm`} />
-              <DataRow label="地表排除方位" value={`${landscapeData.hydrology.flowDirection.toFixed(0)}°`} />
+              <DataRow
+                label="地表逕流方向"
+                value={landscapeData.drainage.flowDirection !== null
+                  ? `往${compassZh(landscapeData.drainage.flowDirection)} · ${landscapeData.drainage.flowDirection.toFixed(0)}°`
+                  : data?.slopePct === null ? NO_DATA : '平坦，無明顯方向'}
+              />
+              <DataRow label="地表曲率" value={data ? curvatureLabel(data.planCurvature) : '--'} />
             </div>
+            <Note>逕流方向 = DEM 下坡方向</Note>
           </section>
         )}
 
-        {/* ── 都市干擾 ── */}
+        {/* ── 熱與風環境 ── */}
         {settings.showUrbanStress && landscapeData && (
           <section>
-            <div className="gis-section-label mb-2">Urban Stress · 都市干擾</div>
+            <div className="gis-section-label mb-2">Heat &amp; Wind · 熱與風環境</div>
             <div>
-              <DataRow label="熱指數 Heat Index" value={`${(landscapeData.urbanStress.surfaceHeatIndex * 100).toFixed(0)} %`} />
-              <DataRow label="反照率 Albedo" value={landscapeData.urbanStress.albedo.toFixed(2)} />
-              <DataRow label="推估表面溫度" value={`${landscapeData.urbanStress.surfaceTemp.toFixed(1)} °C`}
-                valueColor={landscapeData.urbanStress.surfaceTemp > 38 ? '#F44336' : undefined} />
+              <DataRow
+                label="地表溫度（模式）"
+                value={fmt(landscapeData.urbanStress.surfaceTemp, 1, ' °C')}
+                valueColor={(landscapeData.urbanStress.surfaceTemp ?? 0) > 38 ? '#F44336' : undefined}
+              />
+              <DataRow label="強風坡地" value={yesNo(landscapeData.urbanStress.windySlope)} />
+              <DataRow label="低風速平坦低地" value={yesNo(landscapeData.urbanStress.stagnantLowland)} />
             </div>
-            <div className="mt-2 space-y-1">
-              <div
-                className="text-[9px] px-2 py-1 rounded"
-                style={{
-                  background: landscapeData.urbanStress.canyonEffect ? 'rgba(244,67,54,0.1)' : 'rgba(76,175,80,0.1)',
-                  color: landscapeData.urbanStress.canyonEffect ? '#F44336' : '#4CAF50',
-                }}
-              >
-                {landscapeData.urbanStress.canyonEffect ? '⚠ 街谷風效應明顯' : '✓ 街道風場流動順暢'}
-              </div>
-              <div
-                className="text-[9px] px-2 py-1 rounded"
-                style={{
-                  background: landscapeData.urbanStress.downdraftRisk ? 'rgba(244,67,54,0.1)' : 'rgba(33,150,243,0.1)',
-                  color: landscapeData.urbanStress.downdraftRisk ? '#F44336' : '#2196F3',
-                }}
-              >
-                {landscapeData.urbanStress.downdraftRisk ? '⚠ 高壓風切 Downdraft 風險' : '✓ 垂直風量穩定'}
-              </div>
-            </div>
+            <Note>
+              地表溫度：Open-Meteo 地表 0 cm 模式值。強風坡地：風速 &gt;5 m/s 且坡度 &gt;10%；
+              低風速平坦低地：風速 &lt;3 m/s、海拔 &lt;80 m、坡度 &lt;5%
+            </Note>
           </section>
         )}
 
-        {/* ── 08I 容積率 / 建蔽率 ── */}
+        {/* ── 08I 都市計畫分區 ── */}
         {settings.showZoningRegulation && landscapeData && (
           <section>
-            <div className="gis-section-label mb-2">08I · 容積率 / 建蔽率</div>
+            <div className="gis-section-label mb-2">08I · 都市計畫分區</div>
             <div
               className="px-3 py-2 rounded mb-2"
               style={{ background: '#1C1C1C', border: '1px solid #2A2A2A' }}
             >
-              <div className="flex justify-between items-center mb-2">
+              <div className="flex justify-between items-center">
                 <span className="text-[9px]" style={{ color: '#888' }}>分區</span>
-                <span className="text-[10px] font-bold truncate max-w-[120px]" style={{ color: '#C8A84B' }}>
+                <span className="text-[10px] font-bold truncate max-w-[150px]" style={{ color: '#C8A84B' }}>
                   {landscapeData.landUseZone.split('（')[0]}
                 </span>
               </div>
-              {landscapeData.zoningRegulation.far !== null ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <div
-                    className="text-center py-2 rounded"
-                    style={{ background: '#141414', border: '1px solid #2A2A2A' }}
-                  >
-                    <div className="text-[8px] mb-1" style={{ color: '#666' }}>容積率 FAR</div>
-                    <div className="text-[18px] font-mono font-bold" style={{ color: '#C8A84B' }}>
-                      {landscapeData.zoningRegulation.far}%
-                    </div>
-                  </div>
-                  <div
-                    className="text-center py-2 rounded"
-                    style={{ background: '#141414', border: '1px solid #2A2A2A' }}
-                  >
-                    <div className="text-[8px] mb-1" style={{ color: '#666' }}>建蔽率 BCR</div>
-                    <div className="text-[18px] font-mono font-bold" style={{ color: '#E05A2B' }}>
-                      {landscapeData.zoningRegulation.bcr}%
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-[10px] py-1" style={{ color: '#666' }}>
-                  無法查詢（非都市計畫區）
-                </div>
-              )}
             </div>
             <div
               className="text-[9px] px-2 py-1.5 rounded leading-relaxed"
-              style={{ background: 'rgba(200,168,75,0.06)', color: '#666', border: '1px solid rgba(200,168,75,0.12)' }}
+              style={{ background: 'rgba(200,168,75,0.06)', color: '#777', border: '1px solid rgba(200,168,75,0.12)' }}
             >
-              {landscapeData.zoningRegulation.note}<br />
-              <span style={{ color: '#444' }}>實際以各縣市都市計畫自治條例為準</span>
+              分區由國土測繪中心 LUIMAP 圖層色碼判讀。<br />
+              容積率、建蔽率依各都市計畫書與縣市土地使用管制規定，各計畫區不同，本工具不提供推估值。
             </div>
           </section>
         )}
@@ -440,47 +458,37 @@ export const RightPanel: React.FC<RightPanelProps> = ({
               <div className="flex justify-between items-center mb-1">
                 <span className="text-[9px]" style={{ color: '#888' }}>環境類型</span>
                 <span className="text-[11px] font-bold" style={{ color: '#E05A2B' }}>
-                  {landscapeData.zoning.category}
+                  {landscapeData.zoning?.category ?? NO_DATA}
                 </span>
               </div>
+              <div className="text-[9px] leading-snug" style={{ color: '#777' }}>
+                {landscapeData.zoning ? `依據：${landscapeData.zoning.basis}` : '需要日照、氣象與高程資料才能分類'}
+              </div>
+            </div>
+            {landscapeData.recommendations.designSuggestions[0] && (
               <div
-                className="h-1 w-full rounded-full overflow-hidden"
-                style={{ background: '#2A2A2A' }}
+                className="text-[10px] px-2 py-2 rounded italic leading-relaxed"
+                style={{ background: '#1C1C1C', color: '#888' }}
               >
-                <div
-                  className="h-full rounded-full transition-all duration-1000"
-                  style={{
-                    width: `${landscapeData.zoning.intensity * 100}%`,
-                    background: '#E05A2B',
-                  }}
-                />
+                「{landscapeData.recommendations.designSuggestions[0]}」
               </div>
-              <div className="text-[9px] mt-1 text-right" style={{ color: '#555' }}>
-                強度 {(landscapeData.zoning.intensity * 10).toFixed(1)} / 10
-              </div>
-            </div>
-            <div
-              className="text-[10px] px-2 py-2 rounded italic leading-relaxed"
-              style={{ background: '#1C1C1C', color: '#888' }}
-            >
-              「{landscapeData.recommendations.designSuggestions[0] ?? '選用適應當地氣候的原生植栽'}」
-            </div>
+            )}
           </section>
         )}
 
-        {/* ── AI 植栽建議 ── */}
+        {/* ── 植栽建議（規則篩選）── */}
         {settings.showPlantMatching && landscapeData && (
           <section>
-            <div className="gis-section-label mb-2">AI Plants · 植栽建議</div>
+            <div className="gis-section-label mb-2">Plants · 植栽建議（規則篩選）</div>
 
             {/* Traits */}
             <div className="grid grid-cols-4 gap-1 mb-3">
               {[
-                { k: '日照', v: landscapeData.aiSummary.traits.sun, hi: '高' },
-                { k: '溫度', v: landscapeData.aiSummary.traits.temp, hi: '高' },
-                { k: '風場', v: landscapeData.aiSummary.traits.wind, hi: '高' },
-                { k: '濕度', v: landscapeData.aiSummary.traits.water, hi: '高' },
-              ].map(({ k, v, hi }) => (
+                { k: '日照', v: landscapeData.traits.sun },
+                { k: '溫度', v: landscapeData.traits.temp },
+                { k: '風場', v: landscapeData.traits.wind },
+                { k: '濕度', v: landscapeData.traits.water },
+              ].map(({ k, v }) => (
                 <div
                   key={k}
                   className="text-center py-1 rounded"
@@ -489,17 +497,23 @@ export const RightPanel: React.FC<RightPanelProps> = ({
                   <div className="text-[8px] mb-0.5" style={{ color: '#555' }}>{k}</div>
                   <div
                     className="text-[11px] font-bold"
-                    style={{ color: v === hi ? '#E05A2B' : '#4CAF50' }}
+                    style={{ color: v === null ? '#555' : v === '高' ? '#E05A2B' : '#4CAF50' }}
                   >
-                    {v}
+                    {v ?? '—'}
                   </div>
                 </div>
               ))}
             </div>
 
+            {landscapeData.recommendations.plants.length === 0 && (
+              <div className="text-[10px] px-2 py-2 rounded" style={{ background: '#1C1C1C', color: '#555' }}>
+                沒有符合條件的植栽（或資料不足）
+              </div>
+            )}
+
             {/* Plant lists */}
             {(['喬木', '灌木', '地被'] as const).map((type) => {
-              const plants = landscapeData.recommendations.topPlants
+              const plants = landscapeData.recommendations.plants
                 .filter((p) => p.type === type)
                 .slice(0, 3);
               if (!plants.length) return null;
@@ -517,6 +531,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
                       <span
                         key={p.id}
                         className="text-[10px] px-2 py-0.5 rounded"
+                        title={`符合：${p.reasons.join('、')}`}
                         style={{
                           background: '#1C1C1C',
                           border: '1px solid #2A2A2A',
@@ -524,6 +539,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
                         }}
                       >
                         {p.name.split(' ')[0]}
+                        <span style={{ color: '#666' }}> · {p.reasons.join('、')}</span>
                       </span>
                     ))}
                   </div>
@@ -548,6 +564,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
                 ))}
               </div>
             )}
+            <Note>依日照、溫度、風、濕度等級比對 12 種常見植栽的光照、需水特性（固定規則，非 AI）</Note>
           </section>
         )}
 
@@ -644,36 +661,13 @@ export const RightPanel: React.FC<RightPanelProps> = ({
           {!settings.analysisPoint && (
             <p>→ 點選地圖地點以啟動景觀決策引擎</p>
           )}
-          {data && data._sources.weather === 'fallback' && (
-            <p style={{ color: '#FF9800' }}>⚠ 氣象 API 失敗，顯示估算值</p>
+          {failures.length > 0 && (
+            <p style={{ color: '#FF9800' }}>⚠ 查詢失敗（顯示「無資料」）：{failures.join('、')}</p>
           )}
-          {data && data._sources.airQuality === 'fallback' && (
-            <p style={{ color: '#FF9800' }}>⚠ 空品 API 失敗，顯示估算值</p>
-          )}
-          {landscapeData && landscapeData._sources.zoning === 'fallback' && (
-            <p style={{ color: '#FF9800' }}>⚠ 都市計畫分區查詢失敗</p>
-          )}
-          {data && data.pm25 > 35 && (
-            <p style={{ color: '#FF9800' }}>⚠ PM2.5 超標 ({data.pm25.toFixed(0)} µg/m³)</p>
-          )}
-          {landscapeData && landscapeData.soil.waterloggingRisk === '高' && (
-            <p style={{ color: '#F44336' }}>⚠ 積水高風險</p>
-          )}
-          {landscapeData && landscapeData.urbanStress.surfaceTemp > 38 && (
-            <p style={{ color: '#F44336' }}>⚠ 地表蓄熱嚴重（{landscapeData.urbanStress.surfaceTemp.toFixed(1)}°C）</p>
-          )}
-          {landscapeData && landscapeData.urbanStress.canyonEffect && (
-            <p style={{ color: '#FF9800' }}>⚠ 街谷風效應明顯</p>
-          )}
-          {data && landscapeData && !([
-            data._sources.weather === 'fallback',
-            data._sources.airQuality === 'fallback',
-            landscapeData._sources.zoning === 'fallback',
-            data.pm25 > 35,
-            landscapeData.soil.waterloggingRisk === '高',
-            landscapeData.urbanStress.surfaceTemp > 38,
-            landscapeData.urbanStress.canyonEffect,
-          ].some(Boolean)) && (
+          {alerts.map(a => (
+            <p key={a} style={{ color: '#FF9800' }}>⚠ {a}</p>
+          ))}
+          {data && landscapeData && failures.length === 0 && alerts.length === 0 && (
             <p style={{ color: '#4CAF50' }}>✓ 所有資料源正常，無環境異常</p>
           )}
         </div>

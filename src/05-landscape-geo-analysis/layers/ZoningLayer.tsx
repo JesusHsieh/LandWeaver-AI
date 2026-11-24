@@ -1,5 +1,5 @@
 import React from 'react';
-import { Entity, PointGraphics, PolylineGraphics, LabelGraphics, BillboardGraphics } from 'resium';
+import { Entity, PolylineGraphics, LabelGraphics, BillboardGraphics } from 'resium';
 import { Cartesian3, Cartesian2, Color, LabelStyle, HorizontalOrigin } from 'cesium';
 import { MapSettings, LandscapeDesignData } from '../types';
 
@@ -21,53 +21,45 @@ function getZoningColor(cat: string): Color {
     case '乾陰區': return Color.BROWN;
     case '潮濕積水區': return Color.AQUA;
     case '強風區': return Color.GHOSTWHITE;
-    case '都市熱島區': return Color.CRIMSON;
+    case '高溫低地區': return Color.CRIMSON;
     default: return Color.LIME;
   }
 }
 
-function getFlowArrowPositions(settings: MapSettings, distance = 150): Cartesian3[] {
-  if (!settings.analysisPoint) return [];
-  const angle = (settings.analysisPoint.lat + settings.analysisPoint.lng) * 1000 % 360;
-  const angleRad = (90 - angle) * (Math.PI / 180);
-  const start = Cartesian3.fromDegrees(settings.analysisPoint.lng, settings.analysisPoint.lat, 5);
-  const latOffset = (distance / 111320) * Math.sin(angleRad);
-  const lngOffset = (distance / (111320 * Math.cos(settings.analysisPoint.lat * (Math.PI / 180)))) * Math.cos(angleRad);
-  const end = Cartesian3.fromDegrees(settings.analysisPoint.lng + lngOffset, settings.analysisPoint.lat + latOffset, 5);
-  return [start, end];
+/** 由基地往 bearing（0=N 順時針）方向 distance 公尺的地面點 */
+function offsetPoint(lat: number, lng: number, bearing: number, distance: number, height = 5): Cartesian3 {
+  const rad = bearing * Math.PI / 180;
+  const latOffset = (distance / 111320) * Math.cos(rad);
+  const lngOffset = (distance / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(rad);
+  return Cartesian3.fromDegrees(lng + lngOffset, lat + latOffset, height);
 }
+
+const COMPASS = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
 
 export const ZoningLayer: React.FC<ZoningLayerProps> = ({ settings, landscapeData }) => {
   if (!settings.analysisPoint) return null;
-
-  const zoningGrid = Array.from({ length: 9 }).map((_, i) => {
-    const r = Math.floor(i / 3) - 1;
-    const c = (i % 3) - 1;
-    const lat = settings.analysisPoint!.lat + r * 0.0008;
-    const lng = settings.analysisPoint!.lng + c * 0.0008;
-    const seed = lat + lng;
-    const pseudoRand = (offset: number) => Math.abs(Math.sin(seed + offset));
-    const cats = ['高熱曝曬區', '半日照區', '陰影區', '強風區', '都市熱島區', '潮濕積水區', '乾陰區'];
-    const cat = cats[Math.floor(pseudoRand(10) * cats.length)];
-    return { lat, lng, cat };
-  });
+  const { lat, lng } = settings.analysisPoint;
+  const zoning = landscapeData?.zoning ?? null;
+  const flow = landscapeData?.drainage.flowDirection ?? null;
+  const stress = landscapeData?.urbanStress;
+  const drainage = landscapeData?.drainage;
 
   return (
     <>
-      {/* Landscape Decision Layers */}
-      {settings.showZoning && zoningGrid.map((z, i) => (
-        <Entity key={`zone-${i}`} position={Cartesian3.fromDegrees(z.lng, z.lat, 10)}>
+      {/* 微氣候分區：資料只有基地一點，因此只標示基地本身的分類 */}
+      {settings.showZoning && zoning && (
+        <Entity position={Cartesian3.fromDegrees(lng, lat, 10)}>
           <BillboardGraphics
             image={ZONE_ICON}
             width={64}
             height={64}
             scale={0.5}
-            color={getZoningColor(z.cat).withAlpha(0.4)}
+            color={getZoningColor(zoning.category).withAlpha(0.4)}
           />
           <LabelGraphics
-            text={z.cat}
+            text={zoning.category}
             font="bold 14px sans-serif"
-            fillColor={getZoningColor(z.cat)}
+            fillColor={getZoningColor(zoning.category)}
             outlineColor={Color.fromBytes(0, 0, 0, 230)}
             outlineWidth={3}
             style={LabelStyle.FILL_AND_OUTLINE}
@@ -78,19 +70,20 @@ export const ZoningLayer: React.FC<ZoningLayerProps> = ({ settings, landscapeDat
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
           />
         </Entity>
-      ))}
+      )}
 
-      {settings.showUrbanStress && landscapeData && (
-        <Entity position={Cartesian3.fromDegrees(settings.analysisPoint.lng, settings.analysisPoint.lat, 20)}>
+      {settings.showUrbanStress && stress && (
+        <Entity position={Cartesian3.fromDegrees(lng, lat, 20)}>
           <LabelGraphics
             text={[
-              `🌡 表面溫度: ${landscapeData.urbanStress.surfaceTemp.toFixed(1)} °C`,
-              `☀ 熱指數: ${(landscapeData.urbanStress.surfaceHeatIndex * 100).toFixed(0)}%  Albedo: ${landscapeData.urbanStress.albedo.toFixed(2)}`,
-              landscapeData.urbanStress.canyonEffect  ? '⚠ 街谷風效應明顯' : '✓ 街道風場正常',
-              landscapeData.urbanStress.downdraftRisk ? '⚠ 高壓風切 Downdraft 風險' : '✓ 垂直風量穩定',
+              stress.surfaceTemp === null ? '🌡 地表溫度：無資料' : `🌡 地表溫度 ${stress.surfaceTemp.toFixed(1)} °C（模式值）`,
+              stress.windySlope === null ? '風環境：無資料'
+                : stress.windySlope ? '⚠ 強風坡地（風速 >5 m/s、坡度 >10%）'
+                : stress.stagnantLowland ? '⚠ 低風速平坦低地（通風可能不良）'
+                : '✓ 無強風坡地、低風速低地條件',
             ].join('\n')}
             font="bold 13px sans-serif"
-            fillColor={landscapeData.urbanStress.surfaceTemp > 38
+            fillColor={(stress.surfaceTemp ?? 0) > 38
               ? Color.fromCssColorString('#FF7043')
               : Color.fromCssColorString('#FFD54F')}
             outlineColor={Color.fromBytes(0, 0, 0, 240)}
@@ -103,25 +96,22 @@ export const ZoningLayer: React.FC<ZoningLayerProps> = ({ settings, landscapeDat
             backgroundPadding={new Cartesian2(10, 6)}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
           />
-          <PointGraphics
-            pixelSize={100}
-            color={(landscapeData.urbanStress.surfaceTemp > 38 ? Color.RED : Color.ORANGE).withAlpha(0.18)}
-          />
         </Entity>
       )}
 
-      {settings.showHydrology && (
+      {/* 地表逕流方向 = DEM 下坡方向；平坦時不畫箭頭 */}
+      {settings.showHydrology && flow !== null && (
         <>
           <Entity>
             <PolylineGraphics
-              positions={getFlowArrowPositions(settings, 200)}
+              positions={[Cartesian3.fromDegrees(lng, lat, 5), offsetPoint(lat, lng, flow, 200)]}
               width={5}
               material={Color.AQUA.withAlpha(0.6)}
             />
           </Entity>
-          <Entity position={getFlowArrowPositions(settings, 220)[1]}>
+          <Entity position={offsetPoint(lat, lng, flow, 220)}>
             <LabelGraphics
-              text="→ 地表逕流向"
+              text={`→ 地表逕流向${COMPASS[Math.round(flow / 45) % 8]}（下坡方向）`}
               font="bold 15px sans-serif"
               fillColor={Color.fromCssColorString('#00E5FF')}
               outlineColor={Color.fromBytes(0, 20, 30, 230)}
@@ -136,12 +126,12 @@ export const ZoningLayer: React.FC<ZoningLayerProps> = ({ settings, landscapeDat
         </>
       )}
 
-      {settings.showSoilAnalysis && landscapeData && (
-        <Entity position={Cartesian3.fromDegrees(settings.analysisPoint.lng, settings.analysisPoint.lat, 5)}>
+      {settings.showSoilAnalysis && drainage && (
+        <Entity position={Cartesian3.fromDegrees(lng, lat, 5)}>
           <LabelGraphics
-            text={`💧 滲透率: ${landscapeData.soil.infiltrationRate.toFixed(1)} mm/hr  排水: ${landscapeData.soil.drainageSpeed}  積水風險: ${landscapeData.soil.waterloggingRisk}`}
+            text={`💧 地表排水（依坡度）：${drainage.speed ?? '無資料'}  積水風險：${drainage.waterloggingRisk ?? '無資料'}`}
             font="bold 13px sans-serif"
-            fillColor={landscapeData.soil.waterloggingRisk === '高'
+            fillColor={drainage.waterloggingRisk === '高'
               ? Color.fromCssColorString('#EF9A9A')
               : Color.fromCssColorString('#80DEEA')}
             outlineColor={Color.fromBytes(0, 0, 0, 230)}

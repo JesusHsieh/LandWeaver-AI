@@ -60,7 +60,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ settings, setSettings, microDa
         </div>
         {microData && (
           <div className="text-[10px] mt-1 font-mono" style={{ color: '#E05A2B' }}>
-            {microData.elevation.toFixed(0)} m · {microData.slopePct.toFixed(1)}% · {microData.aspectDir}
+            {microData.elevation === null || microData.slopePct === null
+              ? '高程資料查詢失敗'
+              : `${microData.elevation.toFixed(0)} m · ${microData.slopePct.toFixed(1)}% · ${microData.aspectDir}`}
           </div>
         )}
       </div>

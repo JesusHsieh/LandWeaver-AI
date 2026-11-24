@@ -34,7 +34,6 @@ export const analysisLayers = (s: MapSettings) => ({
   hydrology: s.showHydrology,
   soilAnalysis: s.showSoilAnalysis,
   plantMatching: s.showPlantMatching,
-  impervious: s.showImperviousLayer,
   ndvi: s.showNdviLayer,
   buildingDensity: s.showBuildingDensity,
   streetTree: s.showStreetTreeLayer,

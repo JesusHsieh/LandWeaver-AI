@@ -15,6 +15,17 @@ function isTileRequest(url = '') {
   );
 }
 
+/** Same header policy as api/proxy.ts in production: drop browser-only headers.
+ *  PVGIS's firewall rejects requests that carry them ("Request Rejected" page). */
+function stripBrowserHeaders(proxy: any) {
+  proxy.on('proxyReq', (proxyReq: any) => {
+    for (const h of Object.keys(proxyReq.getHeaders())) {
+      if (!['host', 'content-type', 'content-length', 'authorization', 'accept'].includes(h)) proxyReq.removeHeader(h);
+    }
+    proxyReq.setHeader('user-agent', 'LandWeaver-AI/1.0');
+  });
+}
+
 function addTileCacheHeaders(proxy: any) {
   proxy.on('proxyRes', (proxyRes: any, req: any) => {
     if (isTileRequest(req.url)) {
@@ -105,6 +116,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/pvgis/, ''),
           secure: true,
+          configure: stripBrowserHeaders,
         },
         // Open-Elevation DEM（提升速度，避免直連 CORS 問題）
         '/open-elevation': {

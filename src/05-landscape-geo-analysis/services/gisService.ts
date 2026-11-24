@@ -1,12 +1,11 @@
 import { MicroClimateData, LandscapeDesignData } from '../types';
-import { fetchOpenMeteoWeather, fetchCWAWeather, fetchEPAAirQuality } from './clients/weatherClient';
+import { fetchOpenMeteoWeather, fetchCWAWeather, fetchEPAAirQuality, fetchOpenMeteoAirQuality } from './clients/weatherClient';
 import { fetchPVGISSolar } from './clients/solarClient';
 import { fetchElevationData } from './clients/elevationClient';
 import { fetchNLSCTownVillage, fetchUrbanPlanningZone, AdminResult } from './clients/nlscClient';
 import { calculateSolarPosition } from './solarCalc';
-import { getZoningRegulation } from './zoningTable';
 import {
-  classifyZone, calcUrbanStress, calcSoil, calcHydrology, buildRecommendations,
+  classifyZone, calcUrbanStress, calcDrainage, calcSeasonalSun, calcTraits, buildRecommendations,
 } from './recommendEngine';
 
 // ============================================================
@@ -34,7 +33,8 @@ async function fetchZoneAndTownCached(lat: number, lng: number): Promise<ZoneTow
       zone: zoneResult.status === 'fulfilled' ? zoneResult.value : '查詢失敗',
       town: townResult.status === 'fulfilled' ? townResult.value : null,
     };
-    _zoneTownCache.set(key, data);
+    // 只快取查詢成功的結果；失敗的下次點選再重查
+    if (zoneResult.status === 'fulfilled' && townResult.status === 'fulfilled') _zoneTownCache.set(key, data);
     _zoneTownInFlight.delete(key);
     if (_zoneTownCache.size > 60) {
       _zoneTownCache.delete(_zoneTownCache.keys().next().value!);
@@ -71,7 +71,7 @@ export const GISService = {
   },
 
   // -------------------------------------------------------
-  // getMicroClimateData — 整合所有即時 API
+  // getMicroClimateData — 整合所有即時 API；失敗的項目為 null，不填估算值
   // -------------------------------------------------------
   async getMicroClimateData(
     lat: number,
@@ -81,7 +81,6 @@ export const GISService = {
   ): Promise<MicroClimateData> {
     const sunPos = this.calculateSolarPosition(lat, lng, date);
 
-    // Run all real API calls in parallel
     // 氣象：Open-Meteo（主）失敗時才補 CWA，避免成功時仍等待 CWA。
     const weatherPromise = fetchOpenMeteoWeather(lat, lng, signal)
       .catch(openMeteoError =>
@@ -92,71 +91,68 @@ export const GISService = {
             );
           })
       );
+    // 空品：環境部測站（需 Key）優先，否則 Open-Meteo CAMS 模式值
+    const airPromise = fetchEPAAirQuality(lat, lng, signal)
+      .catch(epaError =>
+        fetchOpenMeteoAirQuality(lat, lng, signal)
+          .catch(omError => {
+            throw new Error(`環境部: ${epaError?.message ?? epaError}; Open-Meteo: ${omError?.message ?? omError}`);
+          })
+      );
 
     const [weather, air, solar, elevation] = await Promise.allSettled([
       weatherPromise,
-      fetchEPAAirQuality(lat, lng, signal),
+      airPromise,
       fetchPVGISSolar(lat, lng, signal),
       fetchElevationData(lat, lng, signal),
     ]);
 
-    // Weather: Open-Meteo first, CWA fallback, then constants
-    const w = weather.status === 'fulfilled' ? weather.value : null;
+    const w = weather.status   === 'fulfilled' ? weather.value   : null;
     const a = air.status       === 'fulfilled' ? air.value       : null;
     const s = solar.status     === 'fulfilled' ? solar.value     : null;
     const e = elevation.status === 'fulfilled' ? elevation.value : null;
 
-    // Shadow coverage estimated from solar altitude (real solar geometry)
-    const shadowCoverage = Math.max(0, Math.min(100, 90 - sunPos.altitude * 1.8));
-
-    if (!w)  console.warn('[GIS] 氣象 API 失敗:', (weather as PromiseRejectedResult).reason?.message);
-    if (!a)   console.warn('[GIS] EPA 空品 API 失敗:', (air as PromiseRejectedResult).reason?.message);
-    if (!s)   console.warn('[GIS] PVGIS 太陽能 API 失敗:', (solar as PromiseRejectedResult).reason?.message);
-    if (!e)   console.warn('[GIS] Open-Elevation API 失敗:', (elevation as PromiseRejectedResult).reason?.message);
+    if (!w) console.warn('[GIS] 氣象 API 失敗:', (weather as PromiseRejectedResult).reason?.message);
+    if (!a) console.warn('[GIS] 空品 API 失敗:', (air as PromiseRejectedResult).reason?.message);
+    if (!s) console.warn('[GIS] PVGIS 太陽能 API 失敗:', (solar as PromiseRejectedResult).reason?.message);
+    if (!e) console.warn('[GIS] Open-Elevation API 失敗:', (elevation as PromiseRejectedResult).reason?.message);
 
     return {
-      // Weather: Open-Meteo (格點即時，每點不同) → CWA → 常數 fallback
-      temp:          w?.temp          ?? 25.5,
-      humidity:      w?.humidity      ?? 75,
-      windSpeed:     w?.windSpeed     ?? 3.5,
-      windDirection: w?.windDirection ?? 135,
-      rainfall:      w?.rainfall      ?? 0,
+      temp:          w?.temp ?? null,
+      humidity:      w?.humidity ?? null,
+      windSpeed:     w?.windSpeed ?? null,
+      windDirection: w?.windDirection ?? null,
+      rainfall:      w?.rainfall ?? null,
+      surfaceTemp:   w?.surfaceTemp ?? null,
 
-      // EPA real data (fallback: moderate values)
-      pm25: a?.pm25 ?? 20,
-      aqi:  a?.aqi  ?? 65,
+      pm25: a?.pm25 ?? null,
+      aqi:  a?.aqi ?? null,
 
-      // PVGIS real data (fallback: Taiwan average solar)
-      annualIrradiance:  s?.annualIrradiance  ?? 1350,
-      monthlyIrradiance: s?.monthlyIrradiance ?? Array.from({length:12},(_,i)=>50+Math.sin(i/11*Math.PI)*40),
-      peakSunHours:      s?.peakSunHours      ?? 3.8,
-      recommendedTilt:   s?.recommendedTilt   ?? Math.round(Math.abs(lat) * 0.9),
-
-      // Real solar geometry
       solarAzimuth:  sunPos.azimuth,
       solarAltitude: sunPos.altitude,
-      shadowCoverage,
 
-      // Open-Elevation real data (fallback: flat terrain)
-      elevation:       e?.elevation     ?? 20,
-      slopePct:        e?.slopePct      ?? 0,
-      aspectDeg:       e?.aspectDeg     ?? 0,
-      aspectDir:       e?.aspectDir     ?? '--',
-      drainageCoeff:   e?.drainageCoeff ?? 0.35,
-      planCurvature:   e?.planCurvature ?? 0,
+      annualIrradiance:  s?.annualIrradiance ?? null,
+      monthlyIrradiance: s?.monthlyIrradiance ?? null,
+      peakSunHours:      s?.peakSunHours ?? null,
+      recommendedTilt:   s?.recommendedTilt ?? null,
 
-      // API source flags (for UI to show real/fallback indicator)
+      elevation:     e?.elevation ?? null,
+      slopePct:      e?.slopePct ?? null,
+      aspectDeg:     e?.aspectDeg ?? null,
+      aspectDir:     e?.aspectDir ?? null,
+      planCurvature: e?.planCurvature ?? null,
+
       _sources: {
-        weather:    w?.stationName === 'Open-Meteo 格點資料' ? 'openMeteo' : (w ? 'cwa' : 'fallback'),
-        airQuality: air.status       === 'fulfilled' ? 'epa'           : 'fallback',
-        solar:      solar.status     === 'fulfilled' ? 'pvgis'         : 'fallback',
-        elevation:  elevation.status === 'fulfilled' ? 'openElevation' : 'fallback',
-      } as const,
+        weather:    w ? (w.stationName === 'Open-Meteo 格點資料' ? 'openMeteo' : 'cwa') : 'none',
+        airQuality: a?.source ?? 'none',
+        solar:      s ? 'pvgis' : 'none',
+        elevation:  e ? 'openElevation' : 'none',
+      },
     };
   },
 
   // -------------------------------------------------------
-  // getLandscapeDecisionData — 景觀決策引擎（基於真實數據推導）
+  // getLandscapeDecisionData — 以固定規則判讀上述資料（不產生估算數值）
   // -------------------------------------------------------
   async getLandscapeDecisionData(
     lat: number, lng: number, microClimate: MicroClimateData
@@ -169,50 +165,23 @@ export const GISService = {
       ? `${zone}（${town.county}${town.town}${town.sectName ? '·' + town.sectName : ''}）`
       : zone;
 
-    const { category, intensity } = classifyZone(microClimate);
-
-    // --- Seasonal Sun (from real solar geometry) ---
-    const seasonalSun = {
-      summerSolstice: Math.max(0,   microClimate.shadowCoverage - 15),
-      winterSolstice: Math.min(100, microClimate.shadowCoverage + 25),
-      equinox:        microClimate.shadowCoverage,
-    };
-
+    const zoning      = classifyZone(microClimate);
     const urbanStress = calcUrbanStress(microClimate);
-    const soil = calcSoil(microClimate);
-    const hydrology = calcHydrology(microClimate, soil.waterloggingRisk);
-
-    // --- AI Summary ---
-    const aiSummary = {
-      traits: {
-        sun:   microClimate.peakSunHours > 6 ? '高' : microClimate.peakSunHours > 3 ? '中' : '低',
-        temp:  microClimate.temp  > 28 ? '高' : microClimate.temp  > 20 ? '中' : '低',
-        wind:  microClimate.windSpeed > 6 ? '高' : microClimate.windSpeed > 3 ? '中' : '低',
-        water: (microClimate.rainfall > 20 || soil.waterloggingRisk === '高') ? '高' :
-               microClimate.rainfall > 5 ? '中' : '低',
-      } as { sun: '高'|'中'|'低'; temp: '高'|'中'|'低'; wind: '高'|'中'|'低'; water: '高'|'中'|'低' }
-    };
-
-    const recommendations = buildRecommendations(
-      microClimate, category, soil.drainageSpeed, soil.waterloggingRisk, urbanStress, zone
-    );
-
-    const zoningRegulation = getZoningRegulation(zone);
+    const drainage    = calcDrainage(microClimate);
+    const traits      = calcTraits(microClimate, drainage.waterloggingRisk);
 
     return {
-      zoning:      { category, intensity },
+      zoning,
       urbanStress,
-      soil,
-      hydrology,
-      seasonalSun,
-      aiSummary,
+      drainage,
+      seasonalSun: calcSeasonalSun(lat),
+      traits,
       landUseZone,
-      zoningRegulation,
       _sources: {
-        admin:  town !== null          ? 'nlsc'    : 'fallback',
-        zoning: zone !== '查詢失敗'   ? 'nlscWms' : 'fallback',
-      } as const,
-      recommendations,
+        admin:  town !== null        ? 'nlsc'    : 'none',
+        zoning: zone !== '查詢失敗' ? 'nlscWms' : 'none',
+      },
+      recommendations: buildRecommendations(microClimate, zoning, traits, drainage, urbanStress),
     };
   },
 };

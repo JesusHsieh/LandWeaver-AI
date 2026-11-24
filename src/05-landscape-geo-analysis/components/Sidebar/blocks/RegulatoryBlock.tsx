@@ -15,7 +15,7 @@ export const RegulatoryBlock: React.FC<RegulatoryBlockProps> = ({ settings, set 
       style={{ background: 'rgba(200,168,75,0.08)', color: '#888', border: '1px solid rgba(200,168,75,0.15)' }}
     >
       開啟圖層將自動切換為 OSM 2D 底圖<br />
-      <span style={{ color: '#4CAF50' }}>✓ 08A–F WMS · 08G/H OSM · 08I 查表</span>
+      <span style={{ color: '#4CAF50' }}>✓ 08A–F 官方 WMS · 08G/H OSM 標記（非法定範圍）</span>
     </div>
 
     <LayerRow
@@ -61,22 +61,22 @@ export const RegulatoryBlock: React.FC<RegulatoryBlockProps> = ({ settings, set 
       accent="#8D6E63"
     />
     <LayerRow
-      label="08G · 飲用水保護區"
-      sub="OSM 水庫/水源地 · 點標記"
+      label="08G · 水庫 / 水體"
+      sub="OSM 標記 · 非法定飲用水保護區範圍"
       active={settings.showDrinkingWater}
       onClick={() => set('showDrinkingWater', !settings.showDrinkingWater)}
       accent="#00BCD4"
     />
     <LayerRow
-      label="08H · 文化資產"
-      sub="OSM historic · 支援 Google 3D"
+      label="08H · 歷史古蹟點位"
+      sub="OSM historic 標記 · 非文資局法定清冊"
       active={settings.showCulturalHeritage}
       onClick={() => set('showCulturalHeritage', !settings.showCulturalHeritage)}
       accent="#9C27B0"
     />
     <LayerRow
-      label="08I · 容積率 / 建蔽率"
-      sub="依都市計畫分區查表 · 無需額外 API"
+      label="08I · 都市計畫分區判讀"
+      sub="LUIMAP 色碼 · 容積/建蔽依計畫書"
       active={settings.showZoningRegulation}
       onClick={() => set('showZoningRegulation', !settings.showZoningRegulation)}
       accent="#C8A84B"

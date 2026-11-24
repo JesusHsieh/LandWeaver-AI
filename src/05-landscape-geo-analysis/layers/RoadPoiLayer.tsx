@@ -83,20 +83,20 @@ export const RoadPoiLayer: React.FC<RoadPoiLayerProps> = ({
           </Entity>
         );
       })}
-      {/* 道路名稱 + 壓力標籤（primary 以上才顯示） */}
+      {/* 道路名稱 + OSM 道路等級（secondary 以上才顯示；OSM 沒有車流量資料） */}
       {settings.showRoadLayer && roadFeatures
         .filter(r => (r.kind === 'primary' || r.kind === 'trunk' || r.kind === 'secondary') && r.name)
         .filter((_, i) => i < 20)
         .map((road, i) => {
           const mid = road.pts[Math.floor(road.pts.length / 2)];
-          const stressLabel: Record<RoadKind, string> = {
-            trunk: '快速道路 ⬛高流量', primary: '主幹道 🔴高流量',
-            secondary: '次幹道 🟡中流量', tertiary: '地方道 🟢低流量', residential: '住宅路',
+          const classLabel: Record<RoadKind, string> = {
+            trunk: '快速道路', primary: '主幹道',
+            secondary: '次幹道', tertiary: '地方道', residential: '住宅路',
           };
           return (
             <Entity key={`rlabel-${i}`} position={Cartesian3.fromDegrees(mid.lng, mid.lat, 8)}>
               <LabelGraphics
-                text={`${road.name}  ${stressLabel[road.kind]}`}
+                text={`${road.name}  ${classLabel[road.kind]}`}
                 font="10px sans-serif"
                 fillColor={Color.fromCssColorString('#FFFDE7')}
                 outlineColor={Color.fromBytes(0, 0, 0, 200)}
