@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { MapSettings, MicroClimateData, LandscapeDesignData } from '../types';
+import { MapSettings, MicroClimateData, LandscapeDesignData, FloodScenario } from '../types';
 import { exportMd, exportTxt, exportPdf } from '../services/exportService';
 import { RuleCheck, RuleLevel, formatRulesForAI, sortRuleChecks } from '../services/siteRules';
+import {
+  FLOOD_DESIGN, NOT_IN_FLOOD_ZONE, designFlood, floodDepth, floodLevel, scenarioLabel,
+  liquefactionLabel, debrisSlideLabel, GEO_SENSITIVE_VALUE,
+} from '../services/hazards';
 
 interface RightPanelProps {
   settings: MapSettings;
@@ -157,6 +161,37 @@ const Note = ({ children }: { children: React.ReactNode }) => (
   <div className="text-[8px] mt-1 leading-snug" style={{ color: '#555' }}>{children}</div>
 );
 
+/** 淹水潛勢各降雨情境：每列一種延時，格內為累積雨量與模擬淹水深度 */
+const FloodGrid = ({ flood }: { flood: FloodScenario[] }) => (
+  <div className="mt-2 space-y-[2px]">
+    {[6, 12, 24].map(hours => {
+      const row = flood.filter(s => s.hours === hours);
+      return (
+        <div key={hours} className="flex items-stretch gap-[2px]">
+          <span className="w-7 shrink-0 text-[8px] font-mono self-center" style={{ color: '#555' }}>{hours} h</span>
+          {row.map(s => {
+            const level = floodLevel(s.floodClass);
+            return (
+              <span
+                key={s.rainfall}
+                className="flex-1 text-center py-0.5 rounded leading-tight"
+                style={{ background: '#1C1C1C' }}
+                title={`${scenarioLabel(s)}：${floodDepth(s.floodClass) ?? NOT_IN_FLOOD_ZONE}`}
+              >
+                <span className="block text-[7px] font-mono" style={{ color: '#555' }}>{s.rainfall} mm</span>
+                <span className="block text-[8px] font-mono" style={{ color: level ? LEVEL_COLOR[level] : '#444' }}>
+                  {s.floodClass === null ? '—' : floodDepth(s.floodClass)!.replace(' m', '')}
+                </span>
+              </span>
+            );
+          })}
+          {Array.from({ length: 4 - row.length }, (_, i) => <span key={`pad${i}`} className="flex-1" />)}
+        </div>
+      );
+    })}
+  </div>
+);
+
 export const RightPanel: React.FC<RightPanelProps> = ({
   settings, microData: data, landscapeData,
   ruleChecks,
@@ -183,8 +218,16 @@ export const RightPanel: React.FC<RightPanelProps> = ({
     data?._sources.solar === 'none'      && '日照（PVGIS）',
     data?._sources.elevation === 'none'  && '高程（Open-Elevation）',
     landscapeData?._sources.zoning === 'none' && '都市計畫分區',
+    landscapeData?.hazards.flood === null        && '淹水潛勢（水利署）',
+    landscapeData?.hazards.liquefaction === null && '土壤液化潛勢（地調中心）',
+    landscapeData?.hazards.debrisSlide === null  && '岩屑崩滑潛勢（地調中心）',
   ].filter(Boolean) as string[];
+  const designFloodScenario = landscapeData?.hazards.flood ? designFlood(landscapeData.hazards.flood) : null;
   const alerts = [
+    (designFloodScenario?.floodClass ?? 0) >= 2
+      && `淹水潛勢 ${floodDepth(designFloodScenario!.floodClass)}（${scenarioLabel(FLOOD_DESIGN)}）`,
+    landscapeData?.hazards.liquefaction === '高' && '土壤液化高潛勢',
+    landscapeData?.hazards.debrisSlide && '位於岩屑崩滑潛勢區',
     data?.pm25 != null && data.pm25 > 35 && `PM2.5 偏高（${data.pm25.toFixed(0)} µg/m³）`,
     landscapeData?.drainage.waterloggingRisk === '高' && '積水高風險',
     data?.surfaceTemp != null && data.surfaceTemp > 38 && `地表高溫（${data.surfaceTemp.toFixed(1)}°C，模式值）`,
@@ -248,6 +291,43 @@ export const RightPanel: React.FC<RightPanelProps> = ({
                 </>
               )}
             </div>
+          </section>
+        )}
+
+        {/* ── 災害潛勢（官方圖資點位查詢） ── */}
+        {landscapeData && (
+          <section>
+            <div className="gis-section-label mb-2">Hazards · 災害潛勢</div>
+            <div>
+              <DataRow
+                label={`淹水（${FLOOD_DESIGN.hours} h ${FLOOD_DESIGN.rainfall} mm）`}
+                value={landscapeData.hazards.flood === null
+                  ? NO_DATA
+                  : floodDepth(designFloodScenario?.floodClass ?? null) ?? NOT_IN_FLOOD_ZONE}
+                valueColor={(() => {
+                  const level = floodLevel(designFloodScenario?.floodClass ?? null);
+                  return level && level !== '低' ? LEVEL_COLOR[level] : undefined;
+                })()}
+              />
+              <DataRow
+                label="土壤液化"
+                value={liquefactionLabel(landscapeData.hazards.liquefaction)}
+                valueColor={landscapeData.hazards.liquefaction === '高' ? LEVEL_COLOR.高
+                  : landscapeData.hazards.liquefaction === '中' ? LEVEL_COLOR.中 : undefined}
+              />
+              <DataRow
+                label="岩屑崩滑"
+                value={debrisSlideLabel(landscapeData.hazards.debrisSlide)}
+                valueColor={landscapeData.hazards.debrisSlide ? LEVEL_COLOR.中 : undefined}
+              />
+              <DataRow label="斷層 / 山崩地滑敏感區" value={GEO_SENSITIVE_VALUE} />
+            </div>
+            {landscapeData.hazards.flood && <FloodGrid flood={landscapeData.hazards.flood} />}
+            <Note>
+              淹水：水利署淹水潛勢圖各降雨情境的模擬淹水深度（m），「—」為不在潛勢範圍。
+              液化（2021 初級）、岩屑崩滑（2013）：地調中心圖層色碼判讀。
+              地質敏感區官方 WMS 只有外框圖，無法點位判定，請開啟 08D、08F 目視確認
+            </Note>
           </section>
         )}
 

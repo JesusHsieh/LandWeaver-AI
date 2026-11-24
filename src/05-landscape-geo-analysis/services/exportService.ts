@@ -1,6 +1,10 @@
 import { format } from 'date-fns';
 import { MicroClimateData, LandscapeDesignData, MapSettings } from '../types';
 import { evaluateSiteRules, formatRuleTable } from './siteRules';
+import {
+  NOT_IN_FLOOD_ZONE, floodDepth, liquefactionLabel, debrisSlideLabel,
+  GEO_SENSITIVE_VALUE, GEO_SENSITIVE_NOTE, HAZARD_SOURCES,
+} from './hazards';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -44,8 +48,26 @@ export function buildReportMd(
     ['坡向（下坡方向）', micro.aspectDeg === null ? (micro.aspectDir ?? NO_DATA) : `${micro.aspectDir}（${micro.aspectDeg.toFixed(0)}°）`],
   ]);
 
-  // 2. 即時氣象
-  lines.push(`## 二、即時氣象`, ``);
+  // 2. 災害潛勢（官方圖資點位查詢）
+  const hz = landscape.hazards;
+  lines.push(`## 二、災害潛勢（官方圖資點位查詢）`, ``);
+  table([
+    ...(hz.flood === null
+      ? [['淹水潛勢（水利署）', NO_DATA] as [string, string]]
+      : [6, 12, 24].map(hours => {
+          const row = hz.flood!.filter(s => s.hours === hours);
+          return [
+            `淹水潛勢 ${hours} 小時 ${row.map(s => s.rainfall).join(' / ')} mm`,
+            row.map(s => floodDepth(s.floodClass) ?? NOT_IN_FLOOD_ZONE).join(' / '),
+          ] as [string, string];
+        })),
+    ['土壤液化潛勢（2021 初級）', liquefactionLabel(hz.liquefaction)],
+    ['岩屑崩滑潛勢（2013）', debrisSlideLabel(hz.debrisSlide)],
+    ['活動斷層 / 山崩與地滑地質敏感區', `${GEO_SENSITIVE_VALUE}（${GEO_SENSITIVE_NOTE}）`],
+  ]);
+
+  // 3. 即時氣象
+  lines.push(`## 三、即時氣象`, ``);
   table([
     ['氣溫', fmt(micro.temp, 1, ' °C')],
     ['相對濕度', fmt(micro.humidity, 0, ' %')],
@@ -55,15 +77,15 @@ export function buildReportMd(
     ['地表溫度（0 cm，模式值）', fmt(micro.surfaceTemp, 1, ' °C')],
   ]);
 
-  // 3. 空氣品質
-  lines.push(`## 三、空氣品質`, ``);
+  // 4. 空氣品質
+  lines.push(`## 四、空氣品質`, ``);
   table([
     ['PM2.5', fmt(micro.pm25, 0, ' µg/m³')],
     ['AQI', micro.aqi === null ? '僅環境部測站提供' : micro.aqi.toFixed(0)],
   ]);
 
-  // 4. 日照分析
-  lines.push(`## 四、日照分析`, ``);
+  // 5. 日照分析
+  lines.push(`## 五、日照分析`, ``);
   table([
     ['當前太陽高度角', `${micro.solarAltitude.toFixed(1)}°`],
     ['當前太陽方位角', `${micro.solarAzimuth.toFixed(1)}°`],
@@ -74,8 +96,8 @@ export function buildReportMd(
       [`${s.label}正午太陽高度角 / 晝長`, `${s.noonAltitude.toFixed(1)}° / ${s.dayLength.toFixed(1)} h`] as [string, string]),
   ]);
 
-  // 5. 地形、排水與風環境（規則判讀）
-  lines.push(`## 五、地形、排水與風環境（規則判讀）`, ``);
+  // 6. 地形、排水與風環境（規則判讀）
+  lines.push(`## 六、地形、排水與風環境（規則判讀）`, ``);
   table([
     ['微氣候分區', zoning ? `${zoning.category}（依據：${zoning.basis}）` : NO_DATA],
     ['地表排水（依坡度：>20% 快、>5% 中、其餘慢）', drainage.speed ?? NO_DATA],
@@ -87,12 +109,12 @@ export function buildReportMd(
     ['低風速平坦低地（風速 <3 m/s、海拔 <80 m、坡度 <5%）', yesNo(urbanStress.stagnantLowland)],
   ]);
 
-  // 6. 場址規則檢核
+  // 7. 場址規則檢核
   const checks = evaluateSiteRules(micro, landscape);
-  lines.push(`## 六、場址規則檢核`, ``, ...formatRuleTable(checks), ``);
+  lines.push(`## 七、場址規則檢核`, ``, ...formatRuleTable(checks), ``);
 
-  // 7. 植栽建議（規則篩選）
-  lines.push(`## 七、植栽建議（規則篩選，非 AI）`, ``);
+  // 8. 植栽建議（規則篩選）
+  lines.push(`## 八、植栽建議（規則篩選，非 AI）`, ``);
   const t = landscape.traits;
   lines.push(`環境等級：日照 ${t.sun ?? NO_DATA}、溫度 ${t.temp ?? NO_DATA}、風場 ${t.wind ?? NO_DATA}、濕度 ${t.water ?? NO_DATA}`, ``);
   for (const type of ['喬木', '灌木', '地被'] as const) {
@@ -119,8 +141,8 @@ export function buildReportMd(
     lines.push(``);
   }
 
-  // 8. 資料來源
-  lines.push(`## 八、資料來源`, ``);
+  // 9. 資料來源
+  lines.push(`## 九、資料來源`, ``);
   lines.push(`| 資料項目 | 來源 |`, `|---------|------|`);
   lines.push(`| 氣象 | ${WEATHER_SRC[micro._sources.weather]} |`);
   lines.push(`| 空氣品質 | ${AIR_SRC[micro._sources.airQuality]} |`);
@@ -128,6 +150,9 @@ export function buildReportMd(
   lines.push(`| 高程 / 地形 | ${ELEV_SRC[micro._sources.elevation]} |`);
   lines.push(`| 行政區 | ${landscape._sources.admin === 'nlsc' ? '國土測繪中心 TownVillagePointQuery' : '查詢失敗'} |`);
   lines.push(`| 都市計畫分區 | ${landscape._sources.zoning === 'nlscWms' ? '國土測繪中心 LUIMAP（圖層色碼判讀）' : '查詢失敗'} |`);
+  lines.push(`| 淹水潛勢 | ${HAZARD_SOURCES.flood} |`);
+  lines.push(`| 土壤液化潛勢 | ${HAZARD_SOURCES.liquefaction} |`);
+  lines.push(`| 岩屑崩滑潛勢 | ${HAZARD_SOURCES.debrisSlide} |`);
   lines.push(`| 太陽角度、晝長 | 天文公式 |`);
   lines.push(``);
   lines.push(`---`);

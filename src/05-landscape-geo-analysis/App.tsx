@@ -65,8 +65,8 @@ export default function App() {
     setMicroData(null);
     setLandscapeData(null);
 
-    // 立即啟動 zone+town 查詢（與氣象/日照並行，消除串接等待）
-    GISService.prefetchZone(lat, lng);
+    // 立即啟動分區、行政區與災害潛勢查詢（與氣象/日照並行，消除串接等待）
+    GISService.prefetchSite(lat, lng);
     (async () => {
       try {
         const micro = await GISService.getMicroClimateData(

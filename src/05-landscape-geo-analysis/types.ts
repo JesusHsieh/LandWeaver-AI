@@ -64,6 +64,25 @@ export interface PlantMatch {
   reasons: string[];
 }
 
+/** 水利署淹水潛勢圖的一個降雨情境 */
+export interface FloodScenario {
+  /** 延時（小時） */
+  hours: number;
+  /** 累積雨量（mm） */
+  rainfall: number;
+  /** 淹水深度分級 1–5（0.3–0.5 / 0.5–1.0 / 1.0–2.0 / 2.0–3.0 / >3.0 m）；不在潛勢範圍為 null */
+  floodClass: number | null;
+}
+
+/** 官方災害潛勢圖資的點位查詢結果；查詢失敗的項目為 null */
+export interface SiteHazards {
+  flood: FloodScenario[] | null;
+  /** 地調中心初級土壤液化潛勢；'未列入' = 不在分級範圍 */
+  liquefaction: Level | '未列入' | null;
+  /** 是否位於地調中心岩屑崩滑潛勢區 */
+  debrisSlide: boolean | null;
+}
+
 /** 由 MicroClimateData 以固定規則推導，不含任何估算數值 */
 export interface LandscapeDesignData {
   /** 微氣候分區（規則分類）；所需資料不全時為 null */
@@ -88,6 +107,8 @@ export interface LandscapeDesignData {
   /** 植栽篩選用的環境等級（規則） */
   traits: { sun: Level | null; temp: Level | null; wind: Level | null; water: Level | null };
   landUseZone: string;
+  /** 淹水、土壤液化、岩屑崩滑潛勢（官方圖資點位查詢） */
+  hazards: SiteHazards;
   _sources: {
     admin:  'nlsc' | 'none';
     zoning: 'nlscWms' | 'none';

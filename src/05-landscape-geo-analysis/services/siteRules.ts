@@ -8,13 +8,17 @@
  * paste into any AI chat for the actual design analysis.
  */
 import { MicroClimateData, LandscapeDesignData } from '../types';
+import {
+  FLOOD_DESIGN, NOT_IN_FLOOD_ZONE, designFlood, worstFlood, floodDepth, floodLevel, scenarioLabel,
+  liquefactionLabel, debrisSlideLabel, GEO_SENSITIVE_VALUE, GEO_SENSITIVE_NOTE,
+} from './hazards';
 
 export type RuleStatus = 'hit' | 'pass' | 'info' | 'na';
 export type RuleLevel = '高' | '中' | '低';
 
 export interface RuleCheck {
   id: string;        // R01…
-  group: string;     // 地形 / 水文 / 熱環境 / 風環境 / 日照 / 空氣 / 能源 / 法規 / 綜合
+  group: string;     // 地形 / 水文 / 災害 / 熱環境 / 風環境 / 日照 / 空氣 / 能源 / 法規 / 綜合
   name: string;
   value: string;
   threshold: string; // 判準
@@ -92,6 +96,47 @@ export function evaluateSiteRules(m: MicroClimateData, l: LandscapeDesignData): 
         : waterloggingRisk === '中' ? hit('中', '地表排水不快，強降雨時可能滯水')
         : pass('坡度大，地表排水快')),
     }),
+  });
+
+  // ── 災害潛勢（官方圖資點位查詢）──
+  const hz = l.hazards;
+  const flood = hz.flood && designFlood(hz.flood);
+  const worst = hz.flood && worstFlood(hz.flood);
+  const worstNote = worst && worst.floodClass! > (flood?.floodClass ?? 0)
+    ? `最嚴重情境 ${scenarioLabel(worst)}：${floodDepth(worst.floodClass)}`
+    : '';
+  add({
+    group: '災害', name: '淹水潛勢',
+    threshold: `${scenarioLabel(FLOOD_DESIGN)} 情境：≥1.0 m 高 · 0.5–1.0 m 中 · 0.3–0.5 m 低`,
+    ...(!flood ? na('水利署淹水潛勢查詢失敗') : {
+      value: floodDepth(flood.floodClass) ?? NOT_IN_FLOOD_ZONE,
+      ...(flood.floodClass === null
+        ? pass(worstNote || '各降雨情境皆不在潛勢範圍')
+        : hit(floodLevel(flood.floodClass)!, ['水利署淹水潛勢圖模擬淹水深度', worstNote].filter(Boolean).join('；'))),
+    }),
+  });
+
+  add({
+    group: '災害', name: '土壤液化潛勢', threshold: '高潛勢 · 中潛勢',
+    ...(hz.liquefaction === null ? na('地調中心液化潛勢查詢失敗') : {
+      value: liquefactionLabel(hz.liquefaction),
+      ...(hz.liquefaction === '高' ? hit('高', '地震時土壤可能液化，建物、擋土牆與大型喬木基礎需評估')
+        : hz.liquefaction === '中' ? hit('中', '地震時土壤有液化可能，構造物基礎需評估')
+        : pass(hz.liquefaction === '低' ? '低潛勢' : '不在地調中心初級液化潛勢分級範圍')),
+    }),
+  });
+
+  add({
+    group: '災害', name: '岩屑崩滑潛勢', threshold: '位於潛勢區',
+    ...(hz.debrisSlide === null ? na('地調中心岩屑崩滑潛勢查詢失敗') : {
+      value: debrisSlideLabel(hz.debrisSlide),
+      ...(hz.debrisSlide ? hit('中', '坡面岩屑可能崩滑，邊坡穩定與排水需評估') : pass()),
+    }),
+  });
+
+  add({
+    group: '災害', name: '地質敏感區', threshold: '活動斷層 · 山崩與地滑',
+    value: GEO_SENSITIVE_VALUE, status: 'na', note: GEO_SENSITIVE_NOTE,
   });
 
   // ── 熱環境 ──

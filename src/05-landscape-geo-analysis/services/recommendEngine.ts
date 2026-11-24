@@ -3,7 +3,8 @@
 // 所需資料缺漏時回傳 null（畫面顯示「無資料」），不以預設值代替。
 // ============================================================
 
-import { MicroClimateData, LandscapeDesignData, ZoningCategory, PlantMatch, Level } from '../types';
+import { MicroClimateData, LandscapeDesignData, ZoningCategory, PlantMatch, Level, SiteHazards } from '../types';
+import { designFlood, floodDepth, scenarioLabel } from './hazards';
 
 // ── 植栽清單：一般園藝資料的光照、需水特性 ─────────────────────────────────────
 const PLANT_DB: Omit<PlantMatch, 'reasons'>[] = [
@@ -105,6 +106,7 @@ export function buildRecommendations(
   traits: LandscapeDesignData['traits'],
   drainage: LandscapeDesignData['drainage'],
   urbanStress: LandscapeDesignData['urbanStress'],
+  hazards: SiteHazards,
 ): LandscapeDesignData['recommendations'] {
   const avoidPlants: { name: string; reason: string }[] = [];
   if (traits.sun   === '高') avoidPlants.push({ name: '蕨類',   reason: '強光曝曬會導致葉片枯死' });
@@ -142,6 +144,12 @@ export function buildRecommendations(
   if (drainage.waterloggingRisk === '高') designSuggestions.push('增設浮水植栽與滯洪空間');
   if (m.slopePct !== null && m.slopePct > 20) designSuggestions.push('陡坡需設置截水溝防沖蝕', '建議使用根系固坡植物');
 
+  // 官方災害潛勢圖資優先列出
+  const flood = hazards.flood && designFlood(hazards.flood);
+  if (flood?.floodClass) riskWarnings.push(`位於淹水潛勢區（${scenarioLabel(flood)} 模擬淹水 ${floodDepth(flood.floodClass)}）`);
+  if (hazards.liquefaction === '高') riskWarnings.push('土壤液化高潛勢區，構造物與大型喬木基礎需評估');
+  if (hazards.debrisSlide)            riskWarnings.push('位於岩屑崩滑潛勢區，邊坡穩定與排水需評估');
+
   if (drainage.waterloggingRisk === '高') riskWarnings.push('強降雨期間存在顯著積水風險', '根系易因缺氧腐爛');
   if (urbanStress.windySlope)      riskWarnings.push('強風坡地，植栽易傾倒');
   if (urbanStress.stagnantLowland) riskWarnings.push('低風速平坦低地，通風不良，病蟲害風險上升');
@@ -152,6 +160,6 @@ export function buildRecommendations(
     plants,
     avoidPlants,
     designSuggestions: designSuggestions.slice(0, 3),
-    riskWarnings:      riskWarnings.slice(0, 3),
+    riskWarnings:      riskWarnings.slice(0, 4),
   };
 }

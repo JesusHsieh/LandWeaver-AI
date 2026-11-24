@@ -118,16 +118,17 @@ export function useImageryProviders() {
     credit: '地質調查及礦業管理中心 · 地質敏感區（活動斷層）',
   }), []);
 
-  // 08E 淹水潛勢
+  // 08E 淹水潛勢：24 小時 500 mm 情境的模擬淹水深度（與右側面板規則檢核同一情境）。
+  // 不用 114nfp_* 圖層：那是河道範圍，不含淹水深度。
   // Loaded straight from WRA, not through /api/proxy: WRA's firewall rejects
   // requests from Vercel's data-centre IPs, and the server sends CORS headers.
   const wraFloodProvider = useMemo(() => new WebMapServiceImageryProvider({
     url: 'https://maps.wra.gov.tw/arcgis/services/WMS/GIC_WMS/MapServer/WMSServer',
-    layers: '114nfp_bareland,114nfp_deep',
+    layers: 'flood_500mm_24hr',
     ...WMS_OVERLAY_OPTIONS,
     minimumLevel: 7,
     maximumLevel: 14,
-    credit: '水利署 WRA · 淹水潛勢圖 114年（裸地/深度）',
+    credit: '經濟部水利署 · 淹水潛勢圖（24 小時 500 mm）',
   }), []);
 
   // 08C 土石流/崩塌地

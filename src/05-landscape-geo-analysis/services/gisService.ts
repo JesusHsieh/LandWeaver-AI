@@ -1,59 +1,84 @@
-import { MicroClimateData, LandscapeDesignData } from '../types';
+import { MicroClimateData, LandscapeDesignData, SiteHazards } from '../types';
 import { fetchOpenMeteoWeather, fetchCWAWeather, fetchEPAAirQuality, fetchOpenMeteoAirQuality } from './clients/weatherClient';
 import { fetchPVGISSolar } from './clients/solarClient';
 import { fetchElevationData } from './clients/elevationClient';
 import { fetchNLSCTownVillage, fetchUrbanPlanningZone, AdminResult } from './clients/nlscClient';
+import { fetchFloodPotential, fetchLiquefaction, fetchDebrisSlide } from './clients/hazardClient';
 import { calculateSolarPosition } from './solarCalc';
 import {
   classifyZone, calcUrbanStress, calcDrainage, calcSeasonalSun, calcTraits, buildRecommendations,
 } from './recommendEngine';
 
 // ============================================================
-// Zone + Town Cache（避免重複打 NLSC 慢 API）
+// 點位查詢快取（NLSC、水利署、地調中心回應慢，避免同一點重複查詢）
 // key = "lat5,lng5"（四捨五入至 5 位小數，約 1m 精度）
+// 只快取全部查詢成功的結果；有失敗的下次點選再重查
 // ============================================================
-type ZoneTownCache = { zone: string; town: AdminResult | null };
-const _zoneTownCache = new Map<string, ZoneTownCache>();
-const _zoneTownInFlight = new Map<string, Promise<ZoneTownCache>>();
-
-function _zoneKey(lat: number, lng: number) {
-  return `${lat.toFixed(5)},${lng.toFixed(5)}`;
+function memoPointQuery<T>(run: (lat: number, lng: number) => Promise<{ data: T; complete: boolean }>) {
+  const done = new Map<string, T>();
+  const inFlight = new Map<string, Promise<T>>();
+  return (lat: number, lng: number): Promise<T> => {
+    const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+    const cached = done.get(key);
+    if (cached) return Promise.resolve(cached);
+    const pending = inFlight.get(key);
+    if (pending) return pending;
+    const promise = run(lat, lng).then(({ data, complete }) => {
+      inFlight.delete(key);
+      if (complete) {
+        done.set(key, data);
+        if (done.size > 60) done.delete(done.keys().next().value!);
+      }
+      return data;
+    });
+    inFlight.set(key, promise);
+    return promise;
+  };
 }
 
-async function fetchZoneAndTownCached(lat: number, lng: number): Promise<ZoneTownCache> {
-  const key = _zoneKey(lat, lng);
-  if (_zoneTownCache.has(key)) return _zoneTownCache.get(key)!;
-  if (_zoneTownInFlight.has(key)) return _zoneTownInFlight.get(key)!;
+const settledValue = <T>(r: PromiseSettledResult<T>): T | null => (r.status === 'fulfilled' ? r.value : null);
 
-  const promise = Promise.allSettled([
+const fetchZoneAndTown = memoPointQuery(async (lat, lng) => {
+  const [townResult, zoneResult] = await Promise.allSettled([
     fetchNLSCTownVillage(lat, lng),
     fetchUrbanPlanningZone(lat, lng),
-  ]).then(([townResult, zoneResult]) => {
-    const data: ZoneTownCache = {
-      zone: zoneResult.status === 'fulfilled' ? zoneResult.value : '查詢失敗',
-      town: townResult.status === 'fulfilled' ? townResult.value : null,
-    };
-    // 只快取查詢成功的結果；失敗的下次點選再重查
-    if (zoneResult.status === 'fulfilled' && townResult.status === 'fulfilled') _zoneTownCache.set(key, data);
-    _zoneTownInFlight.delete(key);
-    if (_zoneTownCache.size > 60) {
-      _zoneTownCache.delete(_zoneTownCache.keys().next().value!);
-    }
-    return data;
-  });
+  ]);
+  return {
+    data: { zone: settledValue(zoneResult) ?? '查詢失敗', town: settledValue<AdminResult>(townResult) },
+    complete: zoneResult.status === 'fulfilled' && townResult.status === 'fulfilled',
+  };
+});
 
-  _zoneTownInFlight.set(key, promise);
-  return promise;
-}
+const fetchHazards = memoPointQuery<SiteHazards>(async (lat, lng) => {
+  const results = await Promise.allSettled([
+    fetchFloodPotential(lat, lng),
+    fetchLiquefaction(lat, lng),
+    fetchDebrisSlide(lat, lng),
+  ]);
+  const [flood, liquefaction, debrisSlide] = results;
+  ['淹水潛勢', '土壤液化潛勢', '岩屑崩滑潛勢'].forEach((name, i) => {
+    const r = results[i];
+    if (r.status === 'rejected') console.warn(`[GIS] ${name}查詢失敗:`, r.reason?.message ?? r.reason);
+  });
+  return {
+    data: {
+      flood:        settledValue(flood),
+      liquefaction: settledValue(liquefaction),
+      debrisSlide:  settledValue(debrisSlide),
+    },
+    complete: results.every(r => r.status === 'fulfilled'),
+  };
+});
 
 // ============================================================
 // Main GISService Export
 // ============================================================
 export const GISService = {
 
-  // 提前啟動 zone+town 查詢，與 getMicroClimateData 並行
-  prefetchZone(lat: number, lng: number): void {
-    fetchZoneAndTownCached(lat, lng);
+  // 提前啟動分區、行政區與災害潛勢查詢，與 getMicroClimateData 並行
+  prefetchSite(lat: number, lng: number): void {
+    fetchZoneAndTown(lat, lng);
+    fetchHazards(lat, lng);
   },
 
   calculateSolarPosition(lat: number, lng: number, date: Date) {
@@ -158,8 +183,8 @@ export const GISService = {
     lat: number, lng: number, microClimate: MicroClimateData
   ): Promise<LandscapeDesignData> {
 
-    // Zone + town: use cache (pre-warmed by prefetchZone in App.tsx)
-    const { zone, town } = await fetchZoneAndTownCached(lat, lng);
+    // 分區、行政區與災害潛勢：使用快取（App.tsx 點選時已由 prefetchSite 先行查詢）
+    const [{ zone, town }, hazards] = await Promise.all([fetchZoneAndTown(lat, lng), fetchHazards(lat, lng)]);
 
     const landUseZone = town
       ? `${zone}（${town.county}${town.town}${town.sectName ? '·' + town.sectName : ''}）`
@@ -177,11 +202,12 @@ export const GISService = {
       seasonalSun: calcSeasonalSun(lat),
       traits,
       landUseZone,
+      hazards,
       _sources: {
         admin:  town !== null        ? 'nlsc'    : 'none',
         zoning: zone !== '查詢失敗' ? 'nlscWms' : 'none',
       },
-      recommendations: buildRecommendations(microClimate, zoning, traits, drainage, urbanStress),
+      recommendations: buildRecommendations(microClimate, zoning, traits, drainage, urbanStress, hazards),
     };
   },
 };
