@@ -25,6 +25,10 @@ import { useMapInteractions } from '../hooks/useMapInteractions';
 import { useImageryLayerOrder } from '../hooks/useImageryLayerOrder';
 import { useOsmBuildingsFallback } from '../hooks/useOsmBuildingsFallback';
 import { useIonStatus } from '../utils/ionStatus';
+import { sampleGroundHeight } from '../utils/terrainSource';
+
+/** 玉山主峰約 3952 m */
+const TAIWAN_MAX_ELEVATION_M = 4000;
 
 // Layers
 import { BaseImageryLayers } from '../layers/BaseImageryLayers';
@@ -126,17 +130,27 @@ export const MapControl: React.FC<MapControlProps> = ({ settings, onLocationClic
   }, []);
 
   useEffect(() => {
-    if (viewerRef.current?.cesiumElement && settings.selectedBase) {
-      const viewer = viewerRef.current.cesiumElement;
-      viewer.camera.flyTo({
-        destination: Cartesian3.fromDegrees(
-          settings.selectedBase.lng,
-          settings.selectedBase.lat,
-          viewer.camera.positionCartographic.height || 1000
-        ),
-        duration: 2
-      });
+    const viewer = viewerRef.current?.cesiumElement;
+    const base = settings.selectedBase;
+    if (!viewer || !base) return;
+    let cancelled = false;
+    const fly = (height: number) => {
+      if (cancelled) return;
+      viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(base.lng, base.lat, height), duration: 2 });
+    };
+    const { viewHeight } = base;
+    if (viewHeight === undefined) {
+      // 點地圖：維持目前相機高度
+      fly(viewer.camera.positionCartographic.height || 1000);
+    } else if (settings.showTerrain || settings.showGoogle3DTiles) {
+      // 搜尋定位且地表有高程：放在地面以上；查不到地面高程時用高於臺灣最高峰的高度
+      sampleGroundHeight(base.lat, base.lng)
+        .then(ground => fly(ground + viewHeight))
+        .catch(() => fly(TAIWAN_MAX_ELEVATION_M + viewHeight));
+    } else {
+      fly(viewHeight);
     }
+    return () => { cancelled = true; };
   }, [settings.selectedBase?.lat, settings.selectedBase?.lng]);
 
   return (

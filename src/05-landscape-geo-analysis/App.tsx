@@ -4,6 +4,7 @@ import { RightPanel } from './components/RightPanel';
 import { MapControl } from './components/MapControl';
 import { INITIAL_SETTINGS, MapSettings, MicroClimateData, LandscapeDesignData } from './types';
 import { GISService } from './services/gisService';
+import type { LocateTarget } from './components/Sidebar/blocks/LocateBlock';
 import { evaluateSiteRules } from './services/siteRules';
 import { format } from 'date-fns';
 
@@ -112,6 +113,15 @@ export default function App() {
     setSettings(prev => ({
       ...prev,
       selectedBase: { lat, lng, name: `基地座標 (${lat.toFixed(4)}, ${lng.toFixed(4)})` },
+      analysisPoint: { lat, lng },
+    }));
+  };
+
+  // 由地址 / 地標 / 座標搜尋定位：與點地圖相同，另外讓相機飛到適合的高度
+  const handleLocate = ({ lat, lng, name, viewHeight }: LocateTarget) => {
+    setSettings(prev => ({
+      ...prev,
+      selectedBase: { lat, lng, name, viewHeight },
       analysisPoint: { lat, lng },
     }));
   };
@@ -228,7 +238,7 @@ export default function App() {
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
         }}
       >
-        <Sidebar settings={settings} setSettings={setSettings} microData={microData} />
+        <Sidebar settings={settings} setSettings={setSettings} microData={microData} onLocate={handleLocate} />
       </div>
 
       {/* ══════════════════════════════════════

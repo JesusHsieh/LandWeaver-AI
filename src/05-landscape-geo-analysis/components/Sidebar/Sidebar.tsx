@@ -6,12 +6,14 @@ import { AnalysisBlock } from './blocks/AnalysisBlock';
 import { RegulatoryBlock } from './blocks/RegulatoryBlock';
 import { TransportBlock } from './blocks/TransportBlock';
 import { DecisionBlock } from './blocks/DecisionBlock';
+import { LocateBlock, type LocateTarget } from './blocks/LocateBlock';
 import { SettingsPanel } from './SettingsPanel';
 
 interface SidebarProps {
   settings: MapSettings;
   setSettings: React.Dispatch<React.SetStateAction<MapSettings>>;
   microData: MicroClimateData | null;
+  onLocate: (target: LocateTarget) => void;
 }
 
 // WMS ImageryLayer 疊加圖層（在 Google 3D mesh 下面，需切 OSM 2D）
@@ -23,7 +25,7 @@ const OVERLAY_KEYS: (keyof MapSettings)[] = [
   'showNlscLandSect', 'showNlscContour', 'showNlscHillShade', 'showNlscAdminBound',
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ settings, setSettings, microData }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ settings, setSettings, microData, onLocate }) => {
   const [showSettings, setShowSettings] = useState(false);
 
   const set = (key: keyof MapSettings, value: unknown) =>
@@ -69,6 +71,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ settings, setSettings, microDa
 
       {/* ── Scrollable sections ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+
+        {/* ━━━ BLOCK 0 : 基地定位（地址、地標、座標） ━━━ */}
+        <LocateBlock onLocate={onLocate} />
+
+        <Divider />
 
         {/* ━━━ BLOCK 1 : 基礎圖層 ━━━ */}
         <LayersBlock settings={settings} set={set} />

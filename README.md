@@ -116,7 +116,7 @@ LandWeaver-AI/
 │   │   ├── types.ts                      # 型別定義 + INITIAL_SETTINGS
 │   │   ├── services/
 │   │   │   ├── gisService.ts             # API facade（氣象/太陽/高程/NLSC/災害潛勢）
-│   │   │   ├── clients/                  # API client 拆分（weather/solar/elevation/nlsc/hazard）
+│   │   │   ├── clients/                  # API client 拆分（weather/solar/elevation/nlsc/hazard/search）
 │   │   │   ├── hazards.ts                # 災害潛勢結果的共用標示（面板、規則、報告）
 │   │   │   ├── recommendEngine.ts        # 景觀建議 / 植栽推薦邏輯
 │   │   │   ├── solarCalc.ts              # 太陽位置純計算
@@ -131,7 +131,7 @@ LandWeaver-AI/
 │   │   │   ├── Sidebar/                  # 圖層控制側欄（blocks / ui 拆分）
 │   │   │   ├── RightPanel.tsx            # 即時數據面板 + 場址規則檢核（複製給 AI）
 │   │   │   └── TransportCesiumLayer.tsx  # 交通動態圖層（facade）
-│   │   ├── utils/                        # fetchOverpass（hedging）/ withTimeout / fetchJson / geo / ionStatus / terrainSource
+│   │   ├── utils/                        # fetchOverpass（hedging）/ withTimeout / fetchJson / geo / ionStatus / terrainSource / coordParse
 │   │   └── data/                         # transportData.ts 高鐵站點 + routes/*.json 路線與站點快照（OSM）
 │   └── 06-taipei-greenery-calc/          # Module 06 · 綠化法規計算機
 │       ├── App.tsx                       # 主介面、城市切換（台北市 / 新北市）
@@ -162,7 +162,10 @@ LandWeaver-AI/
 | PM2.5（備援） | **Open-Meteo Air Quality（CAMS）** | 不需要 | 未填環境部 Key 時使用，屬模式值，不提供台灣 AQI |
 | 斜面年日射量、月分布、峰值日照、最佳傾角 | **EU PVGIS-ERA5** | 不需要 | 最佳傾角斜面日射量 H(i)（不是 1 kWp 發電量） |
 | 高程、坡度、坡向、地表曲率 | **Open-Elevation** | 不需要 | DEM 5 點取樣（間距約 111 m），中央差分計算坡度、下坡方向與平面曲率 |
-| 縣市鄉鎮行政區 | 國土測繪中心 NLSC | 不需要 | TownVillagePointQuery REST API |
+| 縣市鄉鎮行政區、地段 | 國土測繪中心 NLSC | 不需要 | TownVillagePointQuery REST API |
+| 地址 / 地標搜尋 | **OSM Nominatim** | 不需要 | 側欄「Locate · 基地定位」按 Enter 才查（每秒最多 1 次）；門牌號、路名、行政區、名稱不符的結果直接剔除；OSM 門牌不完整，查不到門牌時改列同名道路並標示 |
+| 座標輸入 | 本機換算 | 不需要 | WGS84 十進位 / 度分秒、TWD97 二度分帶（中央經線 121° 本島、119° 澎金馬） |
+| 地號查詢 | 國土測繪圖資服務雲（外部連結） | — | 官方地號定位 API 需申請（民間為付費訂閱），改連到官方地圖查詢後貼回座標 |
 | 都市計畫分區 | 國土測繪中心 WMS | 不需要 | GetMap 9×9 px 取樣 → RGB 比對 LUIMAP 色碼；容積率、建蔽率依各都市計畫書，不提供推估值 |
 | 淹水潛勢 | 經濟部水利署 GIC WMS | 不需要 | 點選基地以 GetFeatureInfo 讀 6 / 12 / 24 小時共 10 種降雨情境的模擬淹水深度；08E 疊圖為 24 小時 500 mm 情境 |
 | 初級土壤液化潛勢 2021 | 地質調查及礦業管理中心 CGS WMS | 不需要 | 官方圖層不支援 GetFeatureInfo，點選基地取 9×9 px 讀色碼（紅 = 高、黃 = 中、綠 = 低）；08B 疊圖 |
@@ -241,7 +244,7 @@ LandWeaver-AI/
 - [ ] 道路分級、生活機能 POI、OSM 綠地標記、建物密度、08G、08H 即時查詢 Overpass 公共鏡像，鏡像故障或過載時載入失敗（可評估改用免 Key 的 OSM 向量圖磚）
 
 **功能缺口**
-- [ ] 地址 / 地名搜尋
+- [ ] 官方門牌 / 地號定位：國土測繪中心「模糊檢索 API」（門牌、地標）與「地籍 API」（地號定位）需申請，民間為付費訂閱；全國門牌地址定位服務只開放政府與學術單位。目前地址用 OSM（門牌不完整），地號需到圖資服務雲查詢後貼座標
 - [ ] 基地範圍（多邊形）繪製與面積量測（目前僅單點分析 + 兩點距離）
 - [ ] 分享連結、儲存基地、多基地比較
 - [ ] 植栽資料庫僅 12 種（規則篩選，非 AI）
@@ -412,6 +415,13 @@ LandWeaver-AI/
   - 活動斷層、山崩與地滑地質敏感區：官方圖只有外框，無法點位判定，照實標示並提示開啟 08D、08F 目視
 - **08E 淹水潛勢疊圖修正**：原本的 `114nfp_*` 圖層實際上是河道範圍、不含淹水深度，改為 24 小時 500 mm 情境的模擬淹水深度圖
 - 查詢結果與分區一樣做點位快取，只快取全部成功的結果
+
+### v9.4 — Module 05 地址、地標、座標定位
+- **側欄新增「Locate · 基地定位」**，定位後與點地圖相同，會立即分析該點：
+  - 座標：貼上經緯度（十進位、度分秒、N/E 標記皆可）或 TWD97 二度分帶 X/Y，本機換算後定位；TWD97 可切換中央經線 121°（本島）/ 119°（澎金馬）
+  - 地址、地標：OSM Nominatim 搜尋，列出候選並標示「門牌 / 地標 / 道路 / 地區」由使用者選擇。OSM 查不到門牌時會回傳同條路的其他門牌或不相干的地點，這類結果一律剔除；查不到門牌時改列同名道路並註明
+  - 地號：官方地號定位 API 需申請，改提供國土測繪圖資服務雲連結，查到後貼座標回來
+- 搜尋定位時相機飛到適合高度（門牌、地標約 600 m，道路 1.5 km，行政區依層級）；開啟地形或 Google 3D 時先取地面高程，避免在山區鑽進地形
 
 ---
 

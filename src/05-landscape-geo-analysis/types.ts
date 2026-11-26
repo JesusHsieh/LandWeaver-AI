@@ -189,6 +189,8 @@ export interface MapSettings {
     lat: number;
     lng: number;
     name: string;
+    /** 由搜尋定位時，相機飛到地面以上這個高度（公尺）；點地圖時不設，維持目前高度 */
+    viewHeight?: number;
   } | null;
   analysisPoint: {
     lat: number;
